@@ -12,59 +12,14 @@ const days = [
   { key: "zo", label: "Zo" },
 ];
 
-const roles = ["FOH", "Host", "Bar", "Runner", "Allround"];
-
 const defaultNeeds = {
-  ma: {
-    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
-    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
-    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
-  },
-  di: {
-    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
-    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
-    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
-  },
-  wo: {
-    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
-    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
-    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
-  },
-  do: {
-    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
-    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
-    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
-  },
-  vr: {
-    standby: [{ role: "Standby", count: 1, starts: ["12:00"] }],
-    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
-    diner: [
-      { role: "FOH", count: 2, starts: ["17:00", "18:00"] },
-      { role: "Runner", count: 1, starts: ["17:00"] },
-      { role: "Bar", count: 1, starts: ["17:00"] },
-    ],
-  },
-  za: {
-    lunch: [
-      { role: "FOH", count: 1, starts: ["10:00"] },
-      { role: "Bar", count: 1, starts: ["12:00"] },
-    ],
-    diner: [
-      { role: "FOH", count: 2, starts: ["17:00", "18:00"] },
-      { role: "Runner", count: 1, starts: ["17:00"] },
-      { role: "Bar", count: 1, starts: ["17:00"] },
-    ],
-  },
-  zo: {
-    lunch: [
-      { role: "FOH", count: 2, starts: ["10:00", "14:00"] },
-      { role: "Bar", count: 1, starts: ["12:00"] },
-    ],
-    diner: [
-      { role: "FOH", count: 1, starts: ["17:00"] },
-      { role: "Bar", count: 1, starts: ["17:00"] },
-    ],
-  },
+  ma: { standby: [{ role: "Standby", count: 1, starts: ["13:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "Allround", count: 1, starts: ["17:00"] }] },
+  di: { standby: [{ role: "Standby", count: 1, starts: ["13:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "Allround", count: 1, starts: ["17:00"] }] },
+  wo: { standby: [{ role: "Standby", count: 1, starts: ["13:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "Allround", count: 1, starts: ["17:00"] }] },
+  do: { standby: [{ role: "Standby", count: 1, starts: ["13:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "Allround", count: 1, starts: ["17:00"] }] },
+  vr: { standby: [{ role: "Standby", count: 1, starts: ["12:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "FOH", count: 2, starts: ["17:00", "18:00"] }, { role: "Runner", count: 1, starts: ["17:00"] }, { role: "Bar", count: 1, starts: ["17:00"] }] },
+  za: { lunch: [{ role: "FOH", count: 1, starts: ["10:00"] }, { role: "Bar", count: 1, starts: ["12:00"] }], diner: [{ role: "FOH", count: 2, starts: ["17:00", "18:00"] }, { role: "Runner", count: 1, starts: ["17:00"] }, { role: "Bar", count: 1, starts: ["17:00"] }] },
+  zo: { lunch: [{ role: "FOH", count: 2, starts: ["10:00", "14:00"] }, { role: "Bar", count: 1, starts: ["12:00"] }], diner: [{ role: "FOH", count: 1, starts: ["17:00"] }, { role: "Bar", count: 1, starts: ["17:00"] }] },
 };
 
 const demoEmployees = [
@@ -75,19 +30,9 @@ const demoEmployees = [
 
 function pad2(n) { return n < 10 ? `0${n}` : String(n) }
 function timeToMin(str) { const [h, m] = String(str).split(":").map(Number); return (h || 0) * 60 + (m || 0) }
-function minToTime(min) { const h = Math.floor(min / 60), m = min % 60; return `${pad2(h)}:${pad2(m)}` }
-
-function prefFrom(shiftKey, start) {
-  if (shiftKey === "standby") return null;
-  const m = timeToMin(start);
-  if (m <= 600) return "open";
-  if (m >= 720 && m <= 840) return "tussen";
-  if (m >= 1020) return "sluit";
-  return null;
-}
+function prefFrom(shiftKey, start) { if (shiftKey === "standby") return null; const m = timeToMin(start); if (m <= 600) return "open"; if (m >= 720 && m <= 840) return "tussen"; if (m >= 1020) return "sluit"; return null }
 function requiresOpen(start) { return timeToMin(start) <= 600 }
 function requiresClose(start) { return timeToMin(start) >= 1020 }
-
 function deepClone(o) { return JSON.parse(JSON.stringify(o)) }
 
 function useP75Wage(employees) {
@@ -107,14 +52,15 @@ export default function App() {
   const [assignmentsByWeek, setAssignmentsByWeek] = useState({})
   const [availabilityByWeek, setAvailabilityByWeek] = useState({})
   const [weekKey, setWeekKey] = useState(currentWeekKey())
-  const needs = needsByWeek[weekKey] || deepClone(defaultNeeds)
-  const assignments = assignmentsByWeek[weekKey] || {}
-  const availability = availabilityByWeek[weekKey] || {}
   const [picker, setPicker] = useState(null)
   const [editEmp, setEditEmp] = useState(null)
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const p75 = useP75Wage(employees)
   const [selfTest, setSelfTest] = useState({ passed: 0, failed: [] })
+
+  const needs = needsByWeek[weekKey] || deepClone(defaultNeeds)
+  const assignments = assignmentsByWeek[weekKey] || {}
+  const availability = availabilityByWeek[weekKey] || {}
+  const p75 = useP75Wage(employees)
 
   useEffect(() => { setSelfTest(runTests()) }, [])
 
@@ -203,8 +149,8 @@ export default function App() {
             const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1
             let placedMentor = false
             let placedRookie = false
-            const groupNeedsOpen = requiresOpen(start)
-            const groupNeedsClose = requiresClose(start)
+            const needOpen = requiresOpen(start)
+            const needClose = requiresClose(start)
             let placedOpen = false
             let placedClose = false
 
@@ -218,18 +164,18 @@ export default function App() {
               } else {
                 if (hasShift) continue
                 if (hasSB) continue
-                if (requiresOpen(start) && !c.canOpen) continue
-                if (requiresClose(start) && !c.canClose) continue
+                if (needOpen && !c.canOpen) continue
+                if (needClose && !c.canClose) continue
                 if (c.wage >= p75 && dureCount >= limitDure) continue
               }
 
-              if (groupNeedsOpen && !placedOpen && c.canOpen) {
+              if (needOpen && !placedOpen && c.canOpen) {
                 placed.push({ employeeId: c.id, standby: false }); byDay[d.key].add(c.id)
                 if (c.wage >= p75) dureCount++; placedOpen = true
                 if (c.isMentor) placedMentor = true; if (c.isRookie) placedRookie = true
                 continue
               }
-              if (groupNeedsClose && !placedClose && c.canClose) {
+              if (needClose && !placedClose && c.canClose) {
                 placed.push({ employeeId: c.id, standby: false }); byDay[d.key].add(c.id)
                 if (c.wage >= p75) dureCount++; placedClose = true
                 if (c.isMentor) placedMentor = true; if (c.isRookie) placedRookie = true
@@ -251,8 +197,8 @@ export default function App() {
                   let idxToSwap = -1, worst = -1
                   placed.forEach((a, idx) => {
                     const emp = employees.find(e => e.id === a.employeeId); if (!emp) return
-                    const isOpenReq = groupNeedsOpen && emp.canOpen
-                    const isCloseReq = groupNeedsClose && emp.canClose
+                    const isOpenReq = needOpen && emp.canOpen
+                    const isCloseReq = needClose && emp.canClose
                     if (isOpenReq || isCloseReq) return
                     if (emp.wage > worst) { worst = emp.wage; idxToSwap = idx }
                   })
@@ -278,18 +224,14 @@ export default function App() {
   function shiftCost(dayKey, shiftKey) {
     const byEmp = {}
     Object.keys(assignments).forEach(k => {
-      const [d, s] = k.split(':'); if (d !== dayKey || s !== shiftKey) return
-      (assignments[k] || []).forEach(a => { if (!a.standby) { byEmp[a.employeeId] = true } })
+      const [d, s, r] = k.split(':'); if (d !== dayKey || s !== shiftKey || r === "Standby") return
+      (assignments[k] || []).forEach(a => { byEmp[a.employeeId] = true })
     })
     return Object.keys(byEmp).reduce((sum, id) => {
       const emp = employees.find(e => e.id === id); return sum + (emp ? emp.wage * 7 : 0)
     }, 0)
   }
-
-  function dayCost(dayKey) {
-    return Object.keys(needs[dayKey] || {}).reduce((sum, s) => sum + shiftCost(dayKey, s), 0)
-  }
-
+  function dayCost(dayKey) { return Object.keys(needs[dayKey] || {}).reduce((sum, s) => sum + shiftCost(dayKey, s), 0) }
   const weekCost = useMemo(() => days.reduce((acc, d) => acc + dayCost(d.key), 0), [assignments, needs])
 
   function warningsFor(dayKey, shiftKey) {
@@ -323,7 +265,7 @@ export default function App() {
       const cols = days.map(d => {
         let standby = false, earliest = null
         Object.keys(assignments).forEach(k => {
-          const [day, shift, role, start] = k.split(':')
+          const [day, , role, start] = k.split(':')
           if (day !== d.key) return
           (assignments[k] || []).forEach(a => {
             if (a.employeeId !== e.id) return
@@ -342,64 +284,62 @@ export default function App() {
   function changeDay(delta) { const d = new Date(selectedDate); d.setDate(d.getDate() + delta); setSelectedDate(d) }
 
   return (
-    <div className={dark ? "dark" : ""}>
-      <div className="min-h-screen" style={{ background: brand.bg, color: '#111' }}>
-        <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl" style={{ background: brand.accent }} />
-              <div className="font-semibold">Roostertool Brasserie</div>
-              <span className="text-xs px-2 py-0.5 rounded-full border">MVP</span>
-            </div>
-            <nav className="flex flex-wrap items-center gap-1">
-              <Tab label="Dashboard" active={tab === 'dashboard'} onClick={() => setTab('dashboard')} />
-              <Tab label="Rooster" active={tab === 'rooster'} onClick={() => setTab('rooster')} />
-              <Tab label="Beschikbaarheid" active={tab === 'beschikbaarheid'} onClick={() => setTab('beschikbaarheid')} />
-              <Tab label="Medewerkers" active={tab === 'medewerkers'} onClick={() => setTab('medewerkers')} />
-              <Tab label="Instellingen" active={tab === 'instellingen'} onClick={() => setTab('instellingen')} />
-              <Tab label="Export" active={tab === 'export'} onClick={() => setTab('export')} />
-            </nav>
-            <div className="flex items-center gap-2">
-              <input type="week" className="px-2 py-1 rounded border" value={weekKey} onChange={e => setWeekKey(e.target.value)} />
-              <button className="px-3 py-1.5 rounded-lg border" onClick={() => setDark(v => !v)}>{dark ? "Light" : "Dark"}</button>
-            </div>
+    <div style={{ background: brand.bg, minHeight: "100vh", color: "#111" }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid #e5e7eb", background: "rgba(255,255,255,0.8)", backdropFilter: "blur(6px)" }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 12, background: brand.accent }} />
+            <div style={{ fontWeight: 600 }}>Roostertool Brasserie</div>
+            <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, border: "1px solid #e5e7eb" }}>MVP</span>
           </div>
-        </header>
+          <nav style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <Tab label="Dashboard" active={tab === 'dashboard'} onClick={() => setTab('dashboard')} />
+            <Tab label="Rooster" active={tab === 'rooster'} onClick={() => setTab('rooster')} />
+            <Tab label="Beschikbaarheid" active={tab === 'beschikbaarheid'} onClick={() => setTab('beschikbaarheid')} />
+            <Tab label="Medewerkers" active={tab === 'medewerkers'} onClick={() => setTab('medewerkers')} />
+            <Tab label="Instellingen" active={tab === 'instellingen'} onClick={() => setTab('instellingen')} />
+            <Tab label="Export" active={tab === 'export'} onClick={() => setTab('export')} />
+          </nav>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="week" value={weekKey} onChange={e => setWeekKey(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+            <button onClick={() => setDark(v => !v)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }}>{dark ? "Light" : "Dark"}</button>
+          </div>
+        </div>
+      </header>
 
-        <main className="max-w-7xl mx-auto px-4 py-6">
-          {tab === 'dashboard' && <Dashboard selectedDate={selectedDate} changeDay={changeDay} employees={employees} dayAssignments={dayAssignments} weekCost={weekCost} rosterMatrix={rosterMatrix} />}
-          {tab === 'rooster' && <Rooster needs={needs} days={days} employees={employees} assignments={assignments} warningsFor={warningsFor} shiftCost={shiftCost} dayCost={dayCost} weekCost={weekCost} p75={p75} setPicker={setPicker} addAssignment={addAssignment} removeAssignment={removeAssignment} onNeedsChange={(next) => setNeedsByWeek(prev => ({ ...prev, [weekKey]: next }))} onChangeStart={(dayKey, shiftKey, entryIndex, role, oldStart, newStart) => {
-            setNeedsByWeek(prev => {
-              const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
-              const list = (wk[dayKey]?.[shiftKey] || []).slice()
-              const entry = { ...list[entryIndex] }
-              entry.starts = entry.starts.map(s => s === oldStart ? newStart : s)
-              list[entryIndex] = entry
-              wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
-              return { ...prev, [weekKey]: wk }
+      <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px" }}>
+        {tab === 'dashboard' && <Dashboard selectedDate={selectedDate} changeDay={changeDay} employees={employees} dayAssignments={dayAssignments} weekCost={weekCost} rosterMatrix={rosterMatrix} />}
+        {tab === 'rooster' && <Rooster needs={needs} days={days} employees={employees} assignments={assignments} warningsFor={warningsFor} shiftCost={shiftCost} dayCost={dayCost} weekCost={weekCost} p75={p75} setPicker={setPicker} addAssignment={addAssignment} removeAssignment={removeAssignment} onNeedsChange={(next) => setNeedsByWeek(prev => ({ ...prev, [weekKey]: next }))} onChangeStart={(dayKey, shiftKey, entryIndex, role, oldStart, newStart) => {
+          setNeedsByWeek(prev => {
+            const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+            const list = (wk[dayKey]?.[shiftKey] || []).slice()
+            const entry = { ...list[entryIndex] }
+            entry.starts = entry.starts.map(s => s === oldStart ? newStart : s)
+            list[entryIndex] = entry
+            wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+            return { ...prev, [weekKey]: wk }
           })
           setAssignmentsByWeek(prev => {
-              const wk = { ...(prev[weekKey] || {}) }
-              const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
-              const newKey = `${dayKey}:${shiftKey}:${role}:${newStart}`
-              if (wk[oldKey]) {
-                const moved = wk[oldKey]
-                const rest = { ...wk }
-                delete rest[oldKey]
-                rest[newKey] = moved
-                return { ...prev, [weekKey]: rest }
-              }
-              return prev
+            const wk = { ...(prev[weekKey] || {}) }
+            const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
+            const newKey = `${dayKey}:${shiftKey}:${role}:${newStart}`
+            if (wk[oldKey]) {
+              const moved = wk[oldKey]
+              const rest = { ...wk }
+              delete rest[oldKey]
+              rest[newKey] = moved
+              return { ...prev, [weekKey]: rest }
+            }
+            return prev
           })
-          }} autofill={autofill} />}
-          {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
-          {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
-          {tab === 'instellingen' && <Settings />}
-          {tab === 'export' && <ExportView />}
-        </main>
+        }} autofill={autofill} />}
+        {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
+        {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
+        {tab === 'instellingen' && <Settings />}
+        {tab === 'export' && <ExportView />}
+      </main>
 
-        <footer className="py-8 text-center text-xs text-gray-500">© Roostertool Brasserie — MVP Prototype</footer>
-      </div>
+      <footer style={{ padding: "24px 0", textAlign: "center", fontSize: 12, color: "#6b7280" }}>© Roostertool Brasserie — MVP Prototype</footer>
 
       {picker && (
         <AssignModal
@@ -425,7 +365,7 @@ export default function App() {
         />
       )}
 
-      <div className="mt-4 max-w-7xl mx-auto px-4">
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "8px 16px" }}>
         <SelfTest selfTest={selfTest} />
       </div>
     </div>
@@ -445,7 +385,7 @@ export default function App() {
     const byDayEmp = {}
     Object.keys(state).forEach(k => {
       const [d, s, r, start] = k.split(':')
-      (state[k] || []).forEach(a => {
+      ;(state[k] || []).forEach(a => {
         byDayEmp[d] = byDayEmp[d] || {}
         byDayEmp[d][a.employeeId] = byDayEmp[d][a.employeeId] || { standby: false, shifts: new Set(), open: false, close: false }
         if (r === 'Standby') byDayEmp[d][a.employeeId].standby = true
@@ -469,7 +409,7 @@ export default function App() {
       Object.keys(state).forEach(k => {
         const [d, s, r] = k.split(':')
         if (d === dayKey && s === shiftKey && r !== 'Standby') {
-          (state[k] || []).forEach(a => { const emp = employees.find(e => e.id === a.employeeId); if (emp && emp.wage >= p75) set.add(a.employeeId) })
+          ;(state[k] || []).forEach(a => { const emp = employees.find(e => e.id === a.employeeId); if (emp && emp.wage >= p75) set.add(a.employeeId) })
         }
       })
       return set.size
@@ -479,83 +419,85 @@ export default function App() {
     Object.keys(state).forEach(k => {
       const [, , role] = k.split(':')
       if (role === 'Standby') return
-      ; (state[k] || []).forEach(a => { const emp = employees.find(e => e.id === a.employeeId); if (emp && ((emp.skills[role] ?? 0) < 3)) fails.push('T5: skill <3 ingepland') })
+      ;(state[k] || []).forEach(a => { const emp = employees.find(e => e.id === a.employeeId); if (emp && ((emp.skills[role] ?? 0) < 3)) fails.push('T5: skill <3 ingepland') })
     })
     const needSB = (dayKey) => (needs[dayKey]?.standby?.[0]?.count) || 0
     days.forEach(d => { const assigned = Object.keys(state).filter(k => k.startsWith(`${d.key}:standby:Standby:`)).reduce((n, k) => n + ((state[k] || []).length), 0); if (assigned > needSB(d.key)) fails.push(`T6: Te veel standby op ${d.key}`) })
-
     return { passed: 8, failed: fails }
   }
 }
 
 function Dashboard({ selectedDate, changeDay, employees, dayAssignments, weekCost, rosterMatrix }) {
+  const dayIndex = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1
+  const rows = dayAssignments(days[dayIndex].key)
+  const m = rosterMatrix()
   return (
-    <div className="grid grid-cols-1 gap-4">
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        <div className="xl:col-span-3 space-y-4">
-          <Panel title="Vandaag">
-            <div className="flex items-center justify-between mb-3">
-              <button className="px-2 py-1 rounded border" onClick={() => changeDay(-1)}>◀︎</button>
-              <div className="text-lg font-semibold">{selectedDate.toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long' })}</div>
-              <button className="px-2 py-1 rounded border" onClick={() => changeDay(1)}>▶︎</button>
-            </div>
-            <div className="rounded-xl border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50"><tr><th className="text-left px-3 py-2">Start</th><th className="text-left px-3 py-2">Rol</th><th className="text-left px-3 py-2">Medewerker</th></tr></thead>
-                <tbody>
-                  {dayAssignments(days[selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1].key).map((r, i) => {
-                    const emp = employees.find(e => e.id === r.employeeId)
-                    return (<tr key={i} className="border-t"><td className="px-3 py-2">{r.role === 'Standby' ? '—' : r.start}</td><td className="px-3 py-2">{r.role}</td><td className="px-3 py-2">{emp?.name || r.employeeId}</td></tr>)
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
-          <Panel title="Dekking & Skills"><div className="text-sm text-gray-600">Visuals voor dekking (per rol) en teamscore.</div></Panel>
-        </div>
-        <div className="space-y-4">
-          <Panel title="Weekkosten"><div className="text-3xl font-semibold">€{weekCost.toFixed(2)}</div><div className="text-xs text-gray-500">Som (excl. Standby). 7u/dienst.</div></Panel>
-          <Panel title="Beschikbaarheid (week)"><div className="text-sm">Overzicht in tab "Beschikbaarheid"</div></Panel>
-        </div>
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+        <Panel title="Vandaag">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <button style={btn()} onClick={() => changeDay(-1)}>◀︎</button>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{selectedDate.toLocaleDateString('nl-NL', { weekday: 'long', day: '2-digit', month: 'long' })}</div>
+            <button style={btn()} onClick={() => changeDay(1)}>▶︎</button>
+          </div>
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" }}>
+            <table style={{ width: "100%", fontSize: 14 }}>
+              <thead style={{ background: "#f9fafb" }}><tr><th style={th()}>Start</th><th style={th()}>Rol</th><th style={th()}>Medewerker</th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const emp = employees.find(e => e.id === r.employeeId)
+                  return (<tr key={i} style={{ borderTop: "1px solid #e5e7eb" }}><td style={td()}>{r.role === 'Standby' ? '—' : r.start}</td><td style={td()}>{r.role}</td><td style={td()}>{emp?.name || r.employeeId}</td></tr>)
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+        <Panel title="Weekkosten">
+          <div style={{ fontSize: 24, fontWeight: 700 }}>€{weekCost.toFixed(2)}</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Som (excl. Standby). 7u/dienst.</div>
+        </Panel>
+        <Panel title="Weekrooster (CSV-formaat)">
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflowX: "auto" }}>
+            <table style={{ width: "100%", fontSize: 14 }}>
+              <thead><tr style={{ background: "#f9fafb" }}>{m.headers.map((h, i) => (<th key={i} style={th()}>{h}</th>))}</tr></thead>
+              <tbody>{m.rows.map((row, r) => (<tr key={r} style={{ borderTop: "1px solid #e5e7eb" }}>{row.map((cell, c) => (<td key={c} style={td()}>{cell}</td>))}</tr>))}</tbody>
+            </table>
+          </div>
+        </Panel>
       </div>
-      <Panel title="Weekrooster (CSV-formaat)">
-        <div className="rounded-xl border overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50">{rosterMatrix().headers.map((h, i) => (<th key={i} className="text-left px-3 py-2">{h}</th>))}</tr></thead>
-            <tbody>{rosterMatrix().rows.map((row, r) => (<tr key={r} className="border-t">{row.map((cell, c) => (<td key={c} className="px-3 py-2">{cell}</td>))}</tr>))}</tbody>
-          </table>
-        </div>
-      </Panel>
     </div>
   )
 }
 
 function Rooster({ needs, days, employees, assignments, warningsFor, shiftCost, dayCost, weekCost, p75, setPicker, addAssignment, removeAssignment, onNeedsChange, onChangeStart, autofill }) {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-      <div className="xl:col-span-3 space-y-4">
-        <div className="rounded-2xl border bg-white/70 p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 rounded-lg border" onClick={autofill}>Autofill (week)</button>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">P75: €{p75.toFixed(2)}</span>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+      <div style={{ display: "grid", gap: 16 }}>
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 16, padding: 12, background: "white", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button style={btn()} onClick={autofill}>Autofill (week)</button>
+            <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>P75: €{p75.toFixed(2)}</span>
           </div>
-          <div className="text-sm">Weekkosten: <b>€{weekCost.toFixed(2)}</b></div>
+          <div style={{ fontSize: 14 }}>Weekkosten: <b>€{weekCost.toFixed(2)}</b></div>
         </div>
+
         {days.map(d => (
-          <div key={d.key} className="rounded-2xl border bg-white/60 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2" style={{ background: brand.bg }}>
-              <div className="font-semibold">{d.label}</div>
-              <div className="text-xs text-gray-500">Kosten: €{dayCost(d.key).toFixed(2)}</div>
+          <div key={d.key} style={{ border: "1px solid #e5e7eb", borderRadius: 16, background: "white", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: brand.bg }}>
+              <div style={{ fontWeight: 600 }}>{d.label}</div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: €{dayCost(d.key).toFixed(2)}</div>
             </div>
-            <div className="grid md:grid-cols-2 gap-3 p-3">
+
+            <div style={{ display: "grid", gap: 12, padding: 12 }}>
               {Object.entries(needs[d.key]).map(([shiftKey, entries]) => (
-                <div key={shiftKey} className="rounded-xl border">
-                  <div className="flex items-center justify-between px-3 py-2 bg-gray-50">
-                    <div className="text-sm font-medium capitalize">{shiftKey === 'standby' ? 'Standby (dag)' : shiftKey}</div>
+                <div key={shiftKey} style={{ border: "1px solid #e5e7eb", borderRadius: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f9fafb" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, textTransform: "capitalize" }}>{shiftKey === 'standby' ? 'Standby (dag)' : shiftKey}</div>
                     <ShiftWarningsBadge info={warningsFor(d.key, shiftKey)} />
-                    <div className="text-xs text-gray-500">Kosten: €{shiftCost(d.key, shiftKey).toFixed(2)}</div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: €{shiftCost(d.key, shiftKey).toFixed(2)}</div>
                   </div>
-                  <div className="grid lg:grid-cols-2 gap-2 p-2">
+
+                  <div style={{ display: "grid", gap: 8, padding: 8 }}>
                     {entries.map((entry, idx) => (
                       <Cell
                         key={idx}
@@ -579,7 +521,8 @@ function Rooster({ needs, days, employees, assignments, warningsFor, shiftCost, 
           </div>
         ))}
       </div>
-      <div className="space-y-4">
+
+      <div style={{ display: "grid", gap: 16, position: "sticky", top: 16, height: "fit-content" }}>
         <Bench employees={employees} p75={p75} />
         <Panel title="Bezetting & Standby (week)">
           <NeedsEditor needs={needs} onChange={onNeedsChange} />
@@ -591,17 +534,17 @@ function Rooster({ needs, days, employees, assignments, warningsFor, shiftCost, 
 
 function Availability({ employees, days, availability, setAvailabilityByWeek, weekKey }) {
   return (
-    <div className="grid gap-4">
+    <div style={{ display: "grid", gap: 16 }}>
       <Panel title="Beschikbaarheid per week">
-        <div className="rounded-xl border overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50"><th className="text-left px-3 py-2">Medewerker</th>{days.map(d => (<th key={d.key} className="text-left px-3 py-2">{d.label}</th>))}</tr></thead>
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflowX: "auto" }}>
+          <table style={{ width: "100%", fontSize: 14 }}>
+            <thead><tr style={{ background: "#f9fafb" }}><th style={th()}>Medewerker</th>{days.map(d => (<th key={d.key} style={th()}>{d.label}</th>))}</tr></thead>
             <tbody>
               {employees.map(e => (
-                <tr key={e.id} className="border-t">
-                  <td className="px-3 py-2 font-medium">{e.name}</td>
+                <tr key={e.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                  <td style={td(true)}>{e.name}</td>
                   {days.map(d => (
-                    <td key={d.key} className="px-3 py-2">
+                    <td key={d.key} style={td()}>
                       <AvailabilityPicker value={availability[e.id]?.[d.key]} onChange={(val) => {
                         setAvailabilityByWeek(prev => { const copy = { ...prev }; const wk = { ...(copy[weekKey] || {}) }; const perEmp = { ...(wk[e.id] || {}) }; perEmp[d.key] = val; wk[e.id] = perEmp; copy[weekKey] = wk; return copy })
                       }} />
@@ -619,99 +562,118 @@ function Availability({ employees, days, availability, setAvailabilityByWeek, we
 
 function Employees({ employees, setEmployees, p75, setEditEmp }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
       <Panel title="Medewerkers">
-        <div className="space-y-2">
+        <div style={{ display: "grid", gap: 8 }}>
           {employees.map(e => (
-            <div key={e.id} className="border rounded-xl p-2 flex items-center justify-between">
+            <div key={e.id} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div className="font-medium">{e.name}</div>
-                <div className="text-xs text-gray-500">€{e.wage.toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(', ') : 'geen'}</div>
-                <div className="text-[11px] text-gray-500">FOH {e.skills.FOH ?? 0} · Host {e.skills.Host ?? 0} · Bar {e.skills.Bar ?? 0} · Runner {e.skills.Runner ?? 0} · AR {e.skills.Allround ?? 0}</div>
-                <div className="text-[11px] text-gray-500">Standby: {e.allowedStandby ? 'ja' : 'nee'} · Open: {e.canOpen ? 'ja' : 'nee'} · Sluit: {e.canClose ? 'ja' : 'nee'}</div>
+                <div style={{ fontWeight: 600 }}>{e.name}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>€{e.wage.toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(', ') : 'geen'}</div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>FOH {e.skills.FOH ?? 0} · Host {e.skills.Host ?? 0} · Bar {e.skills.Bar ?? 0} · Runner {e.skills.Runner ?? 0} · AR {e.skills.Allround ?? 0}</div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>Standby: {e.allowedStandby ? 'ja' : 'nee'} · Open: {e.canOpen ? 'ja' : 'nee'} · Sluit: {e.canClose ? 'ja' : 'nee'}</div>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="text-[11px] px-2 py-1 rounded-md border" onClick={() => setEditEmp(e)}>Bewerk</button>
-                <button className="text-[11px] px-2 py-1 rounded-md border" onClick={() => setEmployees(prev => prev.filter(x => x.id !== e.id))}>Verwijder</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={btnSm()} onClick={() => setEditEmp(e)}>Bewerk</button>
+                <button style={btnSm()} onClick={() => setEmployees(prev => prev.filter(x => x.id !== e.id))}>Verwijder</button>
               </div>
             </div>
           ))}
         </div>
       </Panel>
       <Panel title="Nieuwe medewerker"><NewEmployeeForm onAdd={(emp) => setEmployees(prev => [...prev, emp])} /></Panel>
-      <Panel title="Import (later)"><div className="text-sm text-gray-500">CSV/Excel import volgt.</div></Panel>
+      <Panel title="Import (later)"><div style={{ fontSize: 14, color: "#6b7280" }}>CSV/Excel import volgt.</div></Panel>
     </div>
   )
 }
 
 function Settings() {
   return (
-    <div className="grid gap-4">
-      <Panel title="Kleuren & Branding"><div className="text-sm text-gray-600">Kleuren gematcht aan brasserie1434.nl. Dark mode beschikbaar.</div></Panel>
-      <Panel title="Grenzen (weergave)"><div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"><LabeledInput label="Max opeenvolgende dagen" placeholder="5" /><LabeledInput label="Min. rust (uur)" placeholder="11" /><LabeledInput label="Max sluit→open per week" placeholder="1" /><LabeledInput label="Max diensten/week" placeholder="5" /></div></Panel>
+    <div style={{ display: "grid", gap: 16 }}>
+      <Panel title="Kleuren & Branding"><div style={{ fontSize: 14, color: "#6b7280" }}>Kleuren gematcht aan brasserie1434.nl. Dark mode beschikbaar.</div></Panel>
+      <Panel title="Grenzen (weergave)">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 14 }}>
+          <LabeledInput label="Max opeenvolgende dagen" placeholder="5" />
+          <LabeledInput label="Min. rust (uur)" placeholder="11" />
+          <LabeledInput label="Max sluit→open per week" placeholder="1" />
+          <LabeledInput label="Max diensten/week" placeholder="5" />
+        </div>
+      </Panel>
     </div>
   )
 }
 
 function ExportView() {
   return (
-    <div className="grid gap-4">
-      <Panel title="WhatsApp (Business)"><div className="text-sm text-gray-600">Automatisch versturen via WhatsApp Business.</div><button className="mt-2 px-3 py-1.5 rounded-lg border">Genereer & Verstuur</button></Panel>
-      <Panel title="Kalender (ICS)"><div className="text-sm text-gray-600">Per medewerker een .ics.</div><button className="mt-2 px-3 py-1.5 rounded-lg border">Exporteer ICS</button></Panel>
-      <Panel title="PDF voor prikbord"><button className="px-3 py-1.5 rounded-lg border">Download PDF</button></Panel>
+    <div style={{ display: "grid", gap: 16 }}>
+      <Panel title="WhatsApp (Business)"><div style={{ fontSize: 14, color: "#6b7280" }}>Automatisch versturen via WhatsApp Business.</div><button style={btn()} className="mt-2">Genereer & Verstuur</button></Panel>
+      <Panel title="Kalender (ICS)"><div style={{ fontSize: 14, color: "#6b7280" }}>Per medewerker een .ics.</div><button style={btn()}>Exporteer ICS</button></Panel>
+      <Panel title="PDF voor prikbord"><button style={btn()}>Download PDF</button></Panel>
     </div>
   )
 }
 
 function SelfTest({ selfTest }) {
   return selfTest.failed.length === 0 ? (
-    <span className="ml-1 text-xs text-green-700">Alle {selfTest.passed} tests geslaagd.</span>
+    <span style={{ marginLeft: 4, fontSize: 12, color: "#047857" }}>Alle {selfTest.passed} tests geslaagd.</span>
   ) : (
-    <span className="ml-1 text-xs text-red-700">{selfTest.failed.length} fout(en): {selfTest.failed.join(', ')}</span>
+    <span style={{ marginLeft: 4, fontSize: 12, color: "#b91c1c" }}>{selfTest.failed.length} fout(en): {selfTest.failed.join(', ')}</span>
   )
 }
 
 function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment, onChangeStart }) {
   const role = entry.role
-  const [editKey, setEditKey] = React.useState(null)
-  const allHalfHours = React.useMemo(() => {
+  const [editKey, setEditKey] = useState(null)
+  const allHalfHours = useMemo(() => {
     const times = []; const add = (h, m) => times.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
     for (let h = 6; h <= 24; h++) { add(h % 24, 0); add(h % 24, 30) }
     add(1, 0); add(1, 30)
     return times
   }, [])
   return (
-    <div className="border rounded-xl p-2 bg-white/70">
-      <div className="text-xs font-medium mb-1 flex items-center gap-2"><span className="px-2 py-0.5 rounded-full bg-gray-100">{role}</span><span className="text-gray-500">{entry.count}×</span></div>
-      <div className="space-y-1">
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, background: "white" }}>
+      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f3f4f6" }}>{role}</span>
+        <span style={{ color: "#6b7280" }}>{entry.count}×</span>
+      </div>
+      <div style={{ display: "grid", gap: 6 }}>
         {entry.starts.map((start, i) => {
-          const key = `${dayKey}:${shiftKey}:${role}:${start}`
-          const list = assignments[key] || []
+          const k = `${dayKey}:${shiftKey}:${role}:${start}`
+          const list = assignments[k] || []
           const filled = list.length, spots = entry.count
           const needOpen = requiresOpen(start)
           const needClose = requiresClose(start)
           const hasOpener = list.some(a => { const emp = employees.find(e => e.id === a.employeeId); return !!emp?.canOpen })
           const hasCloser = list.some(a => { const emp = employees.find(e => e.id === a.employeeId); return !!emp?.canClose })
           return (
-            <div key={i} className="rounded-lg border p-1">
-              <div className="text-[11px] text-gray-600 mb-1 flex items-center gap-2">
+            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
                 <span>Start {start} · {filled}/{spots}</span>
-                {needOpen && <span className={`text-[10px] px-1.5 py-0.5 rounded ${hasOpener ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{hasOpener ? 'Open OK' : 'Open ontbreekt'}</span>}
-                {needClose && <span className={`text-[10px] px-1.5 py-0.5 rounded ${hasCloser ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{hasCloser ? 'Sluit OK' : 'Sluit ontbreekt'}</span>}
-                <button className="ml-auto text-[10px] px-1.5 py-0.5 rounded border" onClick={() => setEditKey(editKey === key ? null : key)}>🕒 Tijd</button>
-                {editKey === key && (
-                  <select className="text-[11px] px-2 py-1 rounded border" value={start} onChange={(e) => { const newStart = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, newStart) }}>
+                {needOpen && <span style={pill(hasOpener)}>{hasOpener ? 'Open OK' : 'Open ontbreekt'}</span>}
+                {needClose && <span style={pill(hasCloser)}>{hasCloser ? 'Sluit OK' : 'Sluit ontbreekt'}</span>}
+                <button style={{ marginLeft: "auto", ...btnSm() }} onClick={() => setEditKey(editKey === k ? null : k)}>🕒 Tijd</button>
+                {editKey === k && (
+                  <select value={start} onChange={(e) => { const ns = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns) }} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
                     {allHalfHours.map(t => (<option key={t} value={t}>{t}</option>))}
                   </select>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {list.map((a, idx) => {
                   const emp = employees.find(e => e.id === a.employeeId)
-                  return <BadgeAssignment key={idx} assignment={a} employee={emp} p75={p75} onRemove={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)} />
+                  if (!emp) return null
+                  return (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 8, background: "white", border: "1px solid #e5e7eb", boxShadow: "0 1px 1px rgba(0,0,0,0.04)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{emp.name}</span>
+                      {a.standby && <span style={tinyTag("#e5e7eb", "#374151")}>Standby</span>}
+                      {emp.wage >= p75 && !a.standby && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}
+                      <span style={{ fontSize: 10, color: "#6b7280" }}>€{emp.wage.toFixed(2)}/u</span>
+                      <button style={btnTiny()} onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}>X</button>
+                    </div>
+                  )
                 })}
                 {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
-                  <button key={j} className="text-[11px] px-2 py-1 rounded-md border border-dashed hover:border-solid hover:bg-gray-50" onClick={() => openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
+                  <button key={j} style={btnDashed()} onClick={() => openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
                 ))}
               </div>
             </div>
@@ -724,17 +686,17 @@ function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assi
 
 function Bench({ employees, p75 }) {
   return (
-    <div className="sticky top-4">
-      <div className="mb-2 text-xs uppercase tracking-wide text-gray-500">Beschikbaar</div>
-      <div className="space-y-2">
+    <div>
+      <div style={{ marginBottom: 6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: "#6b7280" }}>Beschikbaar</div>
+      <div style={{ display: "grid", gap: 8 }}>
         {employees.slice().sort((a, b) => a.wage - b.wage).map(e => (
-          <div key={e.id} className="rounded-xl border bg-white/70 p-2 flex items-center justify-between">
+          <div key={e.id} style={{ border: "1px solid #e5e7eb", borderRadius: 12, background: "white", padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="font-medium">{e.name}</div>
-              <div className="text-xs text-gray-500">€{e.wage.toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(', ') : 'geen'}</div>
-              <div className="text-[11px] text-gray-500">FOH {e.skills.FOH ?? 0} · Host {e.skills.Host ?? 0} · Bar {e.skills.Bar ?? 0} · Runner {e.skills.Runner ?? 0} · AR {e.skills.Allround ?? 0}</div>
+              <div style={{ fontWeight: 600 }}>{e.name}</div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>€{e.wage.toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(', ') : 'geen'}</div>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>FOH {e.skills.FOH ?? 0} · Host {e.skills.Host ?? 0} · Bar {e.skills.Bar ?? 0} · Runner {e.skills.Runner ?? 0} · AR {e.skills.Allround ?? 0}</div>
             </div>
-            <div className="flex items-center gap-1">{e.wage >= p75 && !e.standby && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600">Duur</span>}</div>
+            <div>{e.wage >= p75 && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}</div>
           </div>
         ))}
       </div>
@@ -742,42 +704,38 @@ function Bench({ employees, p75 }) {
   )
 }
 
-function BadgeAssignment({ assignment, employee, p75, onRemove }) {
-  if (!employee) return null
-  return (
-    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white shadow-sm border">
-      <span className="text-[11px] font-medium">{employee.name}</span>
-      {assignment.standby && <span className="text-[10px] px-1 rounded bg-gray-200">Standby</span>}
-      {employee.wage >= p75 && !assignment.standby && <span className="text-[10px] px-1 rounded bg-red-100 text-red-600">Duur</span>}
-      <span className="text-[10px] text-gray-500">€{employee.wage.toFixed(2)}/u</span>
-      <button className="ml-1 text-[10px] px-1.5 py-0.5 rounded border hover:bg-gray-50" onClick={onRemove}>X</button>
-    </div>
-  )
-}
-
 function Panel({ title, children }) {
   return (
-    <div className="rounded-2xl border bg-white/70">
-      <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "#eee" }}>
-        <div className="font-medium">{title}</div>
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 16, background: "rgba(255,255,255,0.7)" }}>
+      <div style={{ padding: "8px 12px", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontWeight: 600 }}>{title}</div>
       </div>
-      <div className="p-4">{children}</div>
+      <div style={{ padding: 16 }}>{children}</div>
     </div>
   )
 }
 
 function Tab({ label, active, onClick }) {
-  return <button onClick={onClick} className={`px-3 py-1.5 rounded-lg border ${active ? 'bg-[var(--accent)] text-white' : 'hover:bg-gray-50'}`}>{label}</button>
+  return (
+    <button onClick={onClick} style={{ padding: "6px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: active ? brand.accent : "transparent", color: active ? "white" : "inherit" }}>
+      {label}
+    </button>
+  )
 }
 
 function LabeledInput({ label, placeholder }) {
-  return (<label className="grid gap-1"><span className="text-sm text-gray-700">{label}</span><input className="px-3 py-2 rounded-lg border bg-white/70" placeholder={placeholder} /></label>)
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span style={{ fontSize: 14, color: "#374151" }}>{label}</span>
+      <input placeholder={placeholder} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "rgba(255,255,255,0.7)" }} />
+    </label>
+  )
 }
 
 function ShiftWarningsBadge({ info }) {
   if (!info) return null
-  const cls = info.hasOver ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-  return <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{info.dure}/{info.limit}</span>
+  const style = { fontSize: 12, padding: "2px 8px", borderRadius: 999, background: info.hasOver ? "#fee2e2" : "#dcfce7", color: info.hasOver ? "#b91c1c" : "#166534" }
+  return <span style={style}>{info.dure}/{info.limit}</span>
 }
 
 function AssignModal({ onClose, onChoose, employees, assignments, dayKey, shiftKey, role, start, p75, availability }) {
@@ -808,23 +766,23 @@ function AssignModal({ onClose, onChoose, employees, assignments, dayKey, shiftK
   }))
 
   const candidates = employees.map(e => {
-    let eligible = true, reason = ''
-    if (!isAvail(e.id)) { eligible = false; reason = 'Niet beschikbaar' }
-    if (hasAnyAssignmentInDay(e.id)) { eligible = false; reason = 'Heeft al een dienst vandaag' }
-    if (isStandby && !e.allowedStandby) { eligible = false; reason = 'Niet bevoegd voor Standby' }
+    let eligible = true
+    if (!isAvail(e.id)) eligible = false
+    if (hasAnyAssignmentInDay(e.id)) eligible = false
+    if (isStandby && !e.allowedStandby) eligible = false
     if (!isStandby) {
-      if ((e.skills[role] ?? 0) < 3) { eligible = false; reason = 'Skill < 3' }
-      if (requiresOpen(start) && !e.canOpen) { eligible = false; reason = 'Kan niet openen' }
-      if (requiresClose(start) && !e.canClose) { eligible = false; reason = 'Kan niet sluiten' }
+      if ((e.skills[role] ?? 0) < 3) eligible = false
+      if (requiresOpen(start) && !e.canOpen) eligible = false
+      if (requiresClose(start) && !e.canClose) eligible = false
       const avoid = new Set(e.avoidWith || [])
-      for (const gid of groupIds) { if (avoid.has(gid)) { eligible = false; reason = 'Liever niet samen'; break } }
+      for (const gid of groupIds) { if (avoid.has(gid)) { eligible = false; break } }
     }
     if (q && !e.name.toLowerCase().includes(q.toLowerCase())) eligible = false
     const p = prefFrom(shiftKey, start)
     const prefers = !!(p && (e.prefs || []).includes(p))
     const prefer = new Set(e.preferWith || [])
     let preferScore = 0; groupIds.forEach(id => { if (prefer.has(id)) preferScore++ })
-    return { e, eligible, reason, prefers, preferScore }
+    return { e, eligible, prefers, preferScore }
   }).filter(r => r.eligible).sort((a, b) => {
     if (a.prefers !== b.prefers) return a.prefers ? -1 : 1
     if (a.preferScore !== b.preferScore) return b.preferScore - a.preferScore
@@ -836,21 +794,24 @@ function AssignModal({ onClose, onChoose, employees, assignments, dayKey, shiftK
   })
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-2 border-b flex items-center justify-between"><b>Kies medewerker — {dayKey.toUpperCase()} · {shiftKey === 'standby' ? 'Standby' : shiftKey} · {role} · {start}</b><button className="px-2 py-1 rounded border" onClick={onClose}>Sluit</button></div>
-        <div className="p-4 space-y-2">
-          <input className="w-full px-3 py-2 rounded border" placeholder="Zoek op naam" value={q} onChange={e => setQ(e.target.value)} />
-          {candidates.length === 0 && <div className="text-sm text-gray-500">Geen kandidaten</div>}
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", width: "100%", maxWidth: 640 }}>
+        <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <b>Kies medewerker — {dayKey.toUpperCase()} · {shiftKey === 'standby' ? 'Standby' : shiftKey} · {role} · {start}</b>
+          <button style={btnSm()} onClick={onClose}>Sluit</button>
+        </div>
+        <div style={{ padding: 16, display: "grid", gap: 8 }}>
+          <input placeholder="Zoek op naam" value={q} onChange={e => setQ(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} />
+          {candidates.length === 0 && <div style={{ fontSize: 14, color: "#6b7280" }}>Geen kandidaten</div>}
           {candidates.map(({ e }) => {
             const isDuur = e.wage >= p75
             return (
-              <div key={e.id} className="flex items-center justify-between border rounded-lg p-2">
+              <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
                 <div>
-                  <div className="font-medium">{e.name}</div>
-                  <div className="text-xs text-gray-500">€{e.wage.toFixed(2)}/u {isDuur && <span className="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-600">Duur</span>}</div>
+                  <div style={{ fontWeight: 600 }}>{e.name}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>€{e.wage.toFixed(2)}/u {isDuur && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}</div>
                 </div>
-                <button className="text-[11px] px-2 py-1 rounded-md border" onClick={() => onChoose(e.id)}>Kies</button>
+                <button style={btnSm()} onClick={() => onChoose(e.id)}>Kies</button>
               </div>
             )
           })}
@@ -873,50 +834,53 @@ function EditEmployeeModal({ employee, onClose, onSave, employees }) {
   const [preferWith, setPreferWith] = useState(employee.preferWith || [])
   const [avoidWith, setAvoidWith] = useState(employee.avoidWith || [])
   const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  const toggleId = (arrSetter, arr, id) => arrSetter(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
+  const toggleId = (setArr, arr, id) => setArr(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-2 border-b flex items-center justify-between"><b>Bewerk medewerker</b><button className="px-2 py-1 rounded border" onClick={onClose}>Sluit</button></div>
-        <div className="p-4 grid gap-3">
-          <label className="grid gap-1"><span className="text-sm">Naam</span><input className="px-3 py-2 rounded border" value={name} onChange={e => setName(e.target.value)} /></label>
-          <label className="grid gap-1"><span className="text-sm">Uurloon (€)</span><input className="px-3 py-2 rounded border" type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} /></label>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", width: "100%", maxWidth: 640 }}>
+        <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <b>Bewerk medewerker</b>
+          <button style={btnSm()} onClick={onClose}>Sluit</button>
+        </div>
+        <div style={{ padding: 16, display: "grid", gap: 12 }}>
+          <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Naam</span><input value={name} onChange={e => setName(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Uurloon (€)</span><input type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
           <div>
-            <div className="font-medium mb-1">Voorkeursdiensten</div>
-            <div className="flex items-center gap-3 text-sm">
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Voorkeursdiensten</div>
+            <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
               {['open', 'tussen', 'sluit'].map(p => (<label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={() => togglePref(p)} /> {p}</label>))}
               <label><input type="checkbox" checked={prefs.length === 0} onChange={() => setPrefs([])} /> geen voorkeur</label>
             </div>
           </div>
           <div>
-            <div className="font-medium mb-1">Competenties</div>
-            <div className="flex items-center gap-3 text-sm">
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Competenties</div>
+            <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
               <label><input type="checkbox" checked={canOpen} onChange={e => setCanOpen(e.target.checked)} /> kan openen</label>
               <label><input type="checkbox" checked={canClose} onChange={e => setCanClose(e.target.checked)} /> kan sluiten</label>
               <label><input type="checkbox" checked={allowedStandby} onChange={e => setAllowedStandby(e.target.checked)} /> mag standby</label>
             </div>
           </div>
           <div>
-            <div className="font-medium mb-1">Koppelregels</div>
-            <div className="flex items-center gap-3 text-sm">
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Koppelregels</div>
+            <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
               <label><input type="checkbox" checked={isMentor} onChange={e => setIsMentor(e.target.checked)} /> mentor</label>
               <label><input type="checkbox" checked={isRookie} onChange={e => setIsRookie(e.target.checked)} /> nieuweling</label>
             </div>
-            <div className="grid" style={{ gap: 6, marginTop: 6 }}>
-              <div className="text-sm">Juist wel samen:</div>
-              <div className="flex flex-wrap gap-3 text-sm">
+            <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+              <div style={{ fontSize: 14 }}>Juist wel samen:</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 14 }}>
                 {employees.filter(x => x.id !== employee.id).map(x => (<label key={x.id}><input type="checkbox" checked={(preferWith || []).includes(x.id)} onChange={() => toggleId(setPreferWith, preferWith || [], x.id)} /> {x.name}</label>))}
               </div>
-              <div className="text-sm">Liever niet samen:</div>
-              <div className="flex flex-wrap gap-3 text-sm">
+              <div style={{ fontSize: 14 }}>Liever niet samen:</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 14 }}>
                 {employees.filter(x => x.id !== employee.id).map(x => (<label key={x.id}><input type="checkbox" checked={(avoidWith || []).includes(x.id)} onChange={() => toggleId(setAvoidWith, avoidWith || [], x.id)} /> {x.name}</label>))}
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-end gap-2">
-            <button className="px-3 py-1.5 rounded-lg border" onClick={onClose}>Annuleer</button>
-            <button className="px-3 py-1.5 rounded-lg border" onClick={() => onSave({ ...employee, name, wage, prefs, skills, canOpen, canClose, allowedStandby, isMentor, isRookie, preferWith, avoidWith })}>Opslaan</button>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button style={btn()} onClick={onClose}>Annuleer</button>
+            <button style={btn()} onClick={() => onSave({ ...employee, name, wage, prefs, skills, canOpen, canClose, allowedStandby, isMentor, isRookie, preferWith, avoidWith })}>Opslaan</button>
           </div>
         </div>
       </div>
@@ -928,26 +892,25 @@ function NewEmployeeForm({ onAdd }) {
   const [name, setName] = useState('')
   const [wage, setWage] = useState(15)
   const [prefs, setPrefs] = useState([])
-  const [skills, setSkills] = useState({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 })
+  const [skills] = useState({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 })
   const [canOpen, setCanOpen] = useState(false)
   const [canClose, setCanClose] = useState(false)
   const [allowedStandby, setAllowedStandby] = useState(true)
   const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-
   return (
-    <div className="grid gap-2">
-      <label className="grid gap-1"><span className="text-sm">Naam</span><input className="px-3 py-2 rounded border" value={name} onChange={e => setName(e.target.value)} /></label>
-      <label className="grid gap-1"><span className="text-sm">Uurloon (€)</span><input className="px-3 py-2 rounded border" type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} /></label>
-      <div className="flex items-center gap-3 text-sm">
+    <div style={{ display: "grid", gap: 8 }}>
+      <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Naam</span><input value={name} onChange={e => setName(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
+      <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Uurloon (€)</span><input type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
+      <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
         {['open', 'tussen', 'sluit'].map(p => (<label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={() => togglePref(p)} /> {p}</label>))}
         <label><input type="checkbox" checked={prefs.length === 0} onChange={() => setPrefs([])} /> geen voorkeur</label>
       </div>
-      <div className="flex items-center gap-3 text-sm">
+      <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
         <label><input type="checkbox" checked={canOpen} onChange={e => setCanOpen(e.target.checked)} /> kan openen</label>
         <label><input type="checkbox" checked={canClose} onChange={e => setCanClose(e.target.checked)} /> kan sluiten</label>
         <label><input type="checkbox" checked={allowedStandby} onChange={e => setAllowedStandby(e.target.checked)} /> mag standby</label>
       </div>
-      <button className="px-3 py-1.5 rounded-lg border" onClick={() => { if (!name) return; const id = 'e' + Math.random().toString(36).slice(2, 7); onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby }); setName(''); setPrefs([]); setCanOpen(false); setCanClose(false); setAllowedStandby(true) }}>Toevoegen</button>
+      <button style={btn()} onClick={() => { if (!name) return; const id = 'e' + Math.random().toString(36).slice(2, 7); onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby }); setName(''); setPrefs([]); setCanOpen(false); setCanClose(false); setAllowedStandby(true) }}>Toevoegen</button>
     </div>
   )
 }
@@ -955,17 +918,17 @@ function NewEmployeeForm({ onAdd }) {
 function AvailabilityPicker({ value, onChange }) {
   const type = value?.type || 'all'
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <select className="px-2 py-1 rounded border" value={type} onChange={e => onChange(e.target.value === 'all' ? { type: 'all' } : e.target.value === 'none' ? { type: 'none' } : { type: 'range', from: '10:00', to: '22:00' })}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+      <select value={type} onChange={e => onChange(e.target.value === 'all' ? { type: 'all' } : e.target.value === 'none' ? { type: 'none' } : { type: 'range', from: '10:00', to: '22:00' })} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
         <option value="all">Hele dag</option>
         <option value="none">Niet</option>
         <option value="range">Tijdvak</option>
       </select>
       {type === 'range' && (
         <>
-          <input className="px-2 py-1 rounded border w-24" value={value?.from || '10:00'} onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })} />
+          <input style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }} value={value?.from || '10:00'} onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })} />
           <span>–</span>
-          <input className="px-2 py-1 rounded border w-24" value={value?.to || '22:00'} onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })} />
+          <input style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }} value={value?.to || '22:00'} onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })} />
         </>
       )}
     </div>
@@ -974,19 +937,19 @@ function AvailabilityPicker({ value, onChange }) {
 
 function NeedsEditor({ needs, onChange }) {
   return (
-    <div className="grid gap-2 text-sm">
+    <div style={{ display: "grid", gap: 8, fontSize: 14 }}>
       {Object.entries(needs).map(([dayKey, shifts]) => (
-        <div key={dayKey} className="border rounded-xl">
-          <div className="px-3 py-2 bg-gray-50 font-medium">{dayKey.toUpperCase()}</div>
-          <div className="p-2 grid md:grid-cols-2 gap-2">
+        <div key={dayKey} style={{ border: "1px solid #e5e7eb", borderRadius: 12 }}>
+          <div style={{ padding: "8px 12px", background: "#f9fafb", fontWeight: 600 }}>{dayKey.toUpperCase()}</div>
+          <div style={{ display: "grid", gap: 8, padding: 8 }}>
             {Object.entries(shifts).map(([shiftKey, entries]) => (
-              <div key={shiftKey} className="border rounded-lg p-2">
-                <div className="font-medium mb-1 capitalize">{shiftKey}</div>
+              <div key={shiftKey} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6, textTransform: "capitalize" }}>{shiftKey}</div>
                 {entries.map((e, idx) => (
-                  <div key={idx} className="flex items-center gap-2 mb-1">
-                    <span className="px-2 py-0.5 rounded bg-gray-100">{e.role}</span>
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f3f4f6" }}>{e.role}</span>
                     <span>{e.count}×</span>
-                    <div className="flex items-center gap-1">{e.starts.map((s, i) => (<span key={i} className="px-2 py-0.5 rounded border">{s}</span>))}</div>
+                    <div style={{ display: "flex", gap: 6 }}>{e.starts.map((s, i) => (<span key={i} style={{ padding: "2px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>{s}</span>))}</div>
                   </div>
                 ))}
               </div>
@@ -1003,7 +966,6 @@ function currentWeekKey() {
   const iso = isoWeek(d)
   return `${iso.year}-W${pad2(iso.week)}`
 }
-
 function isoWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   const dayNum = d.getUTCDay() || 7
@@ -1013,3 +975,12 @@ function isoWeek(date) {
   return { year: d.getUTCFullYear(), week: weekNo }
 }
 
+/* ---------- kleine UI helpers ---------- */
+function btn() { return { padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white" } }
+function btnSm() { return { padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", background: "white", fontSize: 12 } }
+function btnTiny() { return { padding: "2px 6px", borderRadius: 6, border: "1px solid #e5e7eb", background: "white", fontSize: 10 } }
+function btnDashed() { return { padding: "6px 10px", borderRadius: 8, border: "1px dashed #9ca3af", background: "transparent", fontSize: 12 } }
+function th() { return { textAlign: "left", padding: "8px 12px" } }
+function td(bold) { return { padding: "8px 12px", fontWeight: bold ? 600 : 400 } }
+function tinyTag(bg, fg) { return { fontSize: 10, padding: "0 6px", borderRadius: 6, background: bg, color: fg } }
+function pill(ok) { return { fontSize: 10, padding: "2px 6px", borderRadius: 999, background: ok ? "#dcfce7" : "#fee2e2", color: ok ? "#166534" : "#b91c1c" } }
