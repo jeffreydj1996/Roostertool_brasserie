@@ -12,6 +12,8 @@ const days = [
   { key: "zo", label: "Zo" },
 ];
 
+const roles = ["FOH", "Host", "Bar", "Runner", "Allround"];
+
 const defaultNeeds = {
   ma: { standby: [{ role: "Standby", count: 1, starts: ["13:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "Allround", count: 1, starts: ["17:00"] }] },
   di: { standby: [{ role: "Standby", count: 1, starts: ["13:00"] }], lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }], diner: [{ role: "Allround", count: 1, starts: ["17:00"] }] },
@@ -30,10 +32,12 @@ const demoEmployees = [
 
 function pad2(n) { return n < 10 ? `0${n}` : String(n) }
 function timeToMin(str) { const [h, m] = String(str).split(":").map(Number); return (h || 0) * 60 + (m || 0) }
+function minToTime(min) { const h = Math.floor(min / 60), m = min % 60; return `${pad2(h)}:${pad2(m)}` }
 function prefFrom(shiftKey, start) { if (shiftKey === "standby") return null; const m = timeToMin(start); if (m <= 600) return "open"; if (m >= 720 && m <= 840) return "tussen"; if (m >= 1020) return "sluit"; return null }
 function requiresOpen(start) { return timeToMin(start) <= 600 }
 function requiresClose(start) { return timeToMin(start) >= 1020 }
 function deepClone(o) { return JSON.parse(JSON.stringify(o)) }
+function halfHours() { const t=[]; const add=(h,m)=>t.push(`${pad2(h%24)}:${pad2(m)}`); for(let h=6;h<=24;h++){add(h,0);add(h,30)} add(1,0); add(1,30); return t }
 
 function useP75Wage(employees) {
   return useMemo(() => {
@@ -81,6 +85,7 @@ export default function App() {
   function addAssignment(dayKey, shiftKey, role, start, employeeId) {
     setAssignmentsByWeek(prev => {
       const prevWeek = prev[weekKey] || {}
+      // max 1 dienst per dag (incl. Standby)
       const conflict = Object.keys(prevWeek).some(k => {
         const [d] = k.split(':')
         if (d !== dayKey) return false
@@ -120,10 +125,10 @@ export default function App() {
       const bp = !!(p && (b.prefs || []).includes(p))
       if (ap !== bp) return ap ? -1 : 1
       if (role !== 'Standby') {
-        const sa = a.skills[role] ?? 0, sb = b.skills[role] ?? 0
-        if (sa !== sb) return sb - sa
+        const sa = a.skills[role] ?? 0, sb = b.e ? b.e.skills[role] ?? 0 : b.skills[role] ?? 0
+        if (sa !== (b.e ? b.e.skills[role] ?? 0 : b.skills[role] ?? 0)) return (b.e ? b.e.skills[role] ?? 0 : b.skills[role] ?? 0) - sa
       }
-      return a.wage - b.wage
+      return a.wage - (b.e ? b.e.wage : b.wage)
     }
   }
 
@@ -137,12 +142,12 @@ export default function App() {
       const dayNeeds = needs[d.key] || {}
       Object.entries(dayNeeds).forEach(([shiftKey, entries]) => {
         entries.forEach(entry => {
+          const perStartCount = (entry.starts.length > 1) ? 1 : entry.count
           entry.starts.forEach(start => {
             const key = slotKey(d.key, shiftKey, entry.role, start)
-            const candidates = employees.filter(e => {
-              if (entry.role === 'Standby') return !!e.allowedStandby
-              return (e.skills[entry.role] ?? 0) >= 3
-            }).sort(candidateSort(entry.role, shiftKey, start))
+            const candidates = employees
+              .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : (e.skills[entry.role] ?? 0) >= 3)
+              .sort(candidateSort(entry.role, shiftKey, start))
 
             let placed = []
             let dureCount = 0
@@ -155,7 +160,7 @@ export default function App() {
             let placedClose = false
 
             for (const c of candidates) {
-              if (placed.length >= entry.count) break
+              if (placed.length >= perStartCount) break
               const hasShift = byDay[d.key].has(c.id)
               const hasSB = byDayStandby[d.key].has(c.id)
 
@@ -185,26 +190,6 @@ export default function App() {
               placed.push({ employeeId: c.id, standby: entry.role === 'Standby' })
               if (entry.role === 'Standby') byDayStandby[d.key].add(c.id)
               else { byDay[d.key].add(c.id); if (c.wage >= p75) dureCount++; if (c.isMentor) placedMentor = true; if (c.isRookie) placedRookie = true }
-            }
-
-            if (entry.role !== 'Standby' && placedRookie && !placedMentor) {
-              const currentIds = new Set(placed.map(x => x.employeeId))
-              const mentor = candidates.find(c => !currentIds.has(c.id) && c.isMentor && !byDay[d.key].has(c.id))
-              if (mentor) {
-                if (placed.length < entry.count) {
-                  placed.push({ employeeId: mentor.id, standby: false })
-                } else {
-                  let idxToSwap = -1, worst = -1
-                  placed.forEach((a, idx) => {
-                    const emp = employees.find(e => e.id === a.employeeId); if (!emp) return
-                    const isOpenReq = needOpen && emp.canOpen
-                    const isCloseReq = needClose && emp.canClose
-                    if (isOpenReq || isCloseReq) return
-                    if (emp.wage > worst) { worst = emp.wage; idxToSwap = idx }
-                  })
-                  if (idxToSwap >= 0) placed[idxToSwap] = { employeeId: mentor.id, standby: false }
-                }
-              }
             }
 
             next[key] = placed
@@ -249,12 +234,108 @@ export default function App() {
     return { hasOver: dure.size > limit, dure: dure.size, limit }
   }
 
+  // --- Diensten bewerken (needs) ---
+  function addEntry(dayKey, shiftKey, entry) {
+    setNeedsByWeek(prev => {
+      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+      const list = (wk[dayKey]?.[shiftKey] || []).slice()
+      const cleaned = { ...entry, starts: [...new Set(entry.starts)] }
+      if (cleaned.starts.length > 1) cleaned.count = cleaned.starts.length
+      list.push(cleaned)
+      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+      return { ...prev, [weekKey]: wk }
+    })
+  }
+  function removeEntry(dayKey, shiftKey, entryIndex) {
+    setNeedsByWeek(prev => {
+      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+      const list = (wk[dayKey]?.[shiftKey] || []).slice()
+      const entry = list[entryIndex]
+      if (!entry) return prev
+      // assignments opruimen
+      setAssignmentsByWeek(prevA => {
+        const wkA = { ...(prevA[weekKey] || {}) }
+        entry.starts.forEach(start => { delete wkA[slotKey(dayKey, shiftKey, entry.role, start)] })
+        return { ...prevA, [weekKey]: wkA }
+      })
+      list.splice(entryIndex, 1)
+      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+      return { ...prev, [weekKey]: wk }
+    })
+  }
+  function addStart(dayKey, shiftKey, entryIndex, newStart) {
+    setNeedsByWeek(prev => {
+      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+      const list = (wk[dayKey]?.[shiftKey] || []).slice()
+      const entry = { ...list[entryIndex] }
+      if (!entry) return prev
+      entry.starts = [...new Set([...(entry.starts || []), newStart])]
+      if (entry.starts.length > 1) entry.count = entry.starts.length
+      list[entryIndex] = entry
+      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+      return { ...prev, [weekKey]: wk }
+    })
+  }
+  function removeStart(dayKey, shiftKey, entryIndex, start) {
+    setNeedsByWeek(prev => {
+      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+      const list = (wk[dayKey]?.[shiftKey] || []).slice()
+      const entry = { ...list[entryIndex] }
+      if (!entry) return prev
+      entry.starts = (entry.starts || []).filter(s => s !== start)
+      setAssignmentsByWeek(prevA => {
+        const wkA = { ...(prevA[weekKey] || {}) }
+        delete wkA[slotKey(dayKey, shiftKey, entry.role, start)]
+        return { ...prevA, [weekKey]: wkA }
+      })
+      if (entry.starts.length === 0) {
+        list.splice(entryIndex, 1)
+      } else {
+        if (entry.starts.length > 1) entry.count = entry.starts.length
+        list[entryIndex] = entry
+      }
+      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+      return { ...prev, [weekKey]: wk }
+    })
+  }
+  function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
+    setNeedsByWeek(prev => {
+      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+      const list = (wk[dayKey]?.[shiftKey] || []).slice()
+      const entry = { ...list[entryIndex] }
+      entry.starts = entry.starts.map(s => (s === oldStart ? newStart : s))
+      entry.starts = [...new Set(entry.starts)]
+      if (entry.starts.length > 1) entry.count = entry.starts.length
+      list[entryIndex] = entry
+      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+      return { ...prev, [weekKey]: wk }
+    })
+    setAssignmentsByWeek(prev => {
+      const wk = { ...(prev[weekKey] || {}) }
+      const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
+      const newKey = `${dayKey}:${shiftKey}:${role}:${newStart}`
+      if (wk[oldKey]) {
+        const moved = wk[oldKey]
+        delete wk[oldKey]
+        const merged = [ ...(wk[newKey] || []), ...moved ]
+        // dedupe per employee
+        const seen = new Set()
+        wk[newKey] = merged.filter(a => { if (seen.has(a.employeeId)) return false; seen.add(a.employeeId); return true })
+      }
+      return { ...prev, [weekKey]: wk }
+    })
+  }
+
+  function autofillAndTest() { autofill() }
+
+  function shiftCostDayLabel(dayKey) { return `€${dayCost(dayKey).toFixed(2)}` }
+
   function dayAssignments(dayKey) {
     const rows = []
     Object.keys(assignments).forEach(k => {
-      const [d, s, role, start] = k.split(':')
+      const [d, , role, start] = k.split(':')
       if (d !== dayKey) return
-      (assignments[k] || []).forEach(a => rows.push({ role, start, employeeId: a.employeeId }))
+      ;(assignments[k] || []).forEach(a => rows.push({ role, start, employeeId: a.employeeId }))
     })
     return rows.sort((a, b) => timeToMin(a.start) - timeToMin(b.start))
   }
@@ -267,7 +348,7 @@ export default function App() {
         Object.keys(assignments).forEach(k => {
           const [day, , role, start] = k.split(':')
           if (day !== d.key) return
-          (assignments[k] || []).forEach(a => {
+          ;(assignments[k] || []).forEach(a => {
             if (a.employeeId !== e.id) return
             if (role === 'Standby') standby = true
             else earliest = earliest == null ? start : (timeToMin(start) < timeToMin(earliest) ? start : earliest)
@@ -309,30 +390,59 @@ export default function App() {
 
       <main style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px" }}>
         {tab === 'dashboard' && <Dashboard selectedDate={selectedDate} changeDay={changeDay} employees={employees} dayAssignments={dayAssignments} weekCost={weekCost} rosterMatrix={rosterMatrix} />}
-        {tab === 'rooster' && <Rooster needs={needs} days={days} employees={employees} assignments={assignments} warningsFor={warningsFor} shiftCost={shiftCost} dayCost={dayCost} weekCost={weekCost} p75={p75} setPicker={setPicker} addAssignment={addAssignment} removeAssignment={removeAssignment} onNeedsChange={(next) => setNeedsByWeek(prev => ({ ...prev, [weekKey]: next }))} onChangeStart={(dayKey, shiftKey, entryIndex, role, oldStart, newStart) => {
-          setNeedsByWeek(prev => {
-            const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
-            const list = (wk[dayKey]?.[shiftKey] || []).slice()
-            const entry = { ...list[entryIndex] }
-            entry.starts = entry.starts.map(s => s === oldStart ? newStart : s)
-            list[entryIndex] = entry
-            wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
-            return { ...prev, [weekKey]: wk }
-          })
-          setAssignmentsByWeek(prev => {
-            const wk = { ...(prev[weekKey] || {}) }
-            const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
-            const newKey = `${dayKey}:${shiftKey}:${role}:${newStart}`
-            if (wk[oldKey]) {
-              const moved = wk[oldKey]
-              const rest = { ...wk }
-              delete rest[oldKey]
-              rest[newKey] = moved
-              return { ...prev, [weekKey]: rest }
-            }
-            return prev
-          })
-        }} autofill={autofill} />}
+
+        {tab === 'rooster' && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+            <div style={{ display: "grid", gap: 16 }}>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 16, padding: 12, background: "white", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button style={btn()} onClick={autofillAndTest}>Autofill (week)</button>
+                  <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>P75: €{p75.toFixed(2)}</span>
+                </div>
+                <div style={{ fontSize: 14 }}>Weekkosten: <b>€{weekCost.toFixed(2)}</b></div>
+              </div>
+
+              {days.map(d => (
+                <div key={d.key} style={{ border: "1px solid #e5e7eb", borderRadius: 16, background: "white", overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: brand.bg }}>
+                    <div style={{ fontWeight: 600 }}>{d.label}</div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: {shiftCostDayLabel(d.key)}</div>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 12, padding: 12 }}>
+                    {Object.entries(needs[d.key]).map(([shiftKey, entries]) => (
+                      <ShiftBlock
+                        key={shiftKey}
+                        dayKey={d.key}
+                        shiftKey={shiftKey}
+                        entries={entries}
+                        employees={employees}
+                        assignments={assignments}
+                        p75={p75}
+                        openPicker={setPicker}
+                        addAssignment={addAssignment}
+                        removeAssignment={removeAssignment}
+                        onChangeStart={onChangeStart}
+                        onAddEntry={addEntry}
+                        onRemoveEntry={removeEntry}
+                        onAddStart={addStart}
+                        onRemoveStart={removeStart}
+                        warnings={warningsFor(d.key, shiftKey)}
+                        shiftCost={(dk, sk) => shiftCost(dk, sk)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gap: 16, position: "sticky", top: 16, height: "fit-content" }}>
+              <Bench employees={employees} p75={p75} />
+              {/* Rechterpaneel "Bezetting & Standby (week)" is verwijderd zoals gevraagd */}
+            </div>
+          </div>
+        )}
+
         {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
         {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
         {tab === 'instellingen' && <Settings />}
@@ -427,6 +537,8 @@ export default function App() {
   }
 }
 
+/* ---------- UI COMPONENTEN ---------- */
+
 function Dashboard({ selectedDate, changeDay, employees, dayAssignments, weekCost, rosterMatrix }) {
   const dayIndex = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1
   const rows = dayAssignments(days[dayIndex].key)
@@ -469,178 +581,130 @@ function Dashboard({ selectedDate, changeDay, employees, dayAssignments, weekCos
   )
 }
 
-function Rooster({ needs, days, employees, assignments, warningsFor, shiftCost, dayCost, weekCost, p75, setPicker, addAssignment, removeAssignment, onNeedsChange, onChangeStart, autofill }) {
+function ShiftBlock({
+  dayKey, shiftKey, entries, employees, assignments, p75,
+  openPicker, addAssignment, removeAssignment, onChangeStart,
+  onAddEntry, onRemoveEntry, onAddStart, onRemoveStart, warnings, shiftCost
+}) {
+  const [adding, setAdding] = useState(false)
+  const [newRole, setNewRole] = useState(shiftKey === 'standby' ? 'Standby' : roles[0])
+  const [newCount, setNewCount] = useState(1)
+  const [newStarts, setNewStarts] = useState(["10:00"])
+
+  useEffect(() => {
+    if (shiftKey === 'standby') { setNewRole('Standby') }
+  }, [shiftKey])
+
+  useEffect(() => {
+    // Zorg dat #start-selects == aantal
+    if (newStarts.length === newCount) return
+    if (newStarts.length < newCount) {
+      const hh = halfHours()
+      const extra = Array.from({ length: newCount - newStarts.length }, () => hh[0])
+      setNewStarts(prev => [...prev, ...extra])
+    } else {
+      setNewStarts(prev => prev.slice(0, newCount))
+    }
+  }, [newCount])
+
+  const headerTitle = shiftKey === 'standby' ? 'Standby (dag)' : shiftKey
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
-      <div style={{ display: "grid", gap: 16 }}>
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 16, padding: 12, background: "white", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button style={btn()} onClick={autofill}>Autofill (week)</button>
-            <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>P75: €{p75.toFixed(2)}</span>
-          </div>
-          <div style={{ fontSize: 14 }}>Weekkosten: <b>€{weekCost.toFixed(2)}</b></div>
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f9fafb" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, textTransform: "capitalize" }}>{headerTitle}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ShiftWarningsBadge info={warnings} />
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: €{shiftCost(dayKey, shiftKey).toFixed(2)}</div>
+          <button style={btnSm()} onClick={() => setAdding(v => !v)}>+ Dienst toevoegen</button>
         </div>
+      </div>
 
-        {days.map(d => (
-          <div key={d.key} style={{ border: "1px solid #e5e7eb", borderRadius: 16, background: "white", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: brand.bg }}>
-              <div style={{ fontWeight: 600 }}>{d.label}</div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: €{dayCost(d.key).toFixed(2)}</div>
+      {adding && (
+        <div style={{ padding: 12, borderBottom: "1px solid #e5e7eb", display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 12 }}>Rol</span>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)} disabled={shiftKey === 'standby'} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                {shiftKey === 'standby'
+                  ? <option value="Standby">Standby</option>
+                  : roles.concat(['Bar','Runner']).filter((v,i,a)=>a.indexOf(v)===i).map(r => <option key={r} value={r}>{r}</option>)
+                }
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 12 }}>Aantal</span>
+              <input type="number" min={1} max={10} value={newCount} onChange={e => setNewCount(Math.max(1, Math.min(10, parseInt(e.target.value || '1', 10))))} style={{ width: 80, padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+            </label>
+            <div style={{ display: "grid", gap: 6, flex: 1 }}>
+              <span style={{ fontSize: 12 }}>Starttijden</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {newStarts.map((t, idx) => (
+                  <select key={idx} value={t} onChange={e => setNewStarts(prev => prev.map((v, i) => i === idx ? e.target.value : v))} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                    {halfHours().map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                ))}
+              </div>
             </div>
-
-            <div style={{ display: "grid", gap: 12, padding: 12 }}>
-              {Object.entries(needs[d.key]).map(([shiftKey, entries]) => (
-                <div key={shiftKey} style={{ border: "1px solid #e5e7eb", borderRadius: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f9fafb" }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, textTransform: "capitalize" }}>{shiftKey === 'standby' ? 'Standby (dag)' : shiftKey}</div>
-                    <ShiftWarningsBadge info={warningsFor(d.key, shiftKey)} />
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: €{shiftCost(d.key, shiftKey).toFixed(2)}</div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 8, padding: 8 }}>
-                    {entries.map((entry, idx) => (
-                      <Cell
-                        key={idx}
-                        dayKey={d.key}
-                        shiftKey={shiftKey}
-                        entryIndex={idx}
-                        entry={entry}
-                        openPicker={setPicker}
-                        employees={employees}
-                        assignments={assignments}
-                        p75={p75}
-                        addAssignment={addAssignment}
-                        removeAssignment={removeAssignment}
-                        onChangeStart={onChangeStart}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={btnSm()} onClick={() => { onAddEntry(dayKey, shiftKey, { role: newRole, count: newCount, starts: newStarts }); setAdding(false) }}>Opslaan</button>
+              <button style={btnSm()} onClick={() => setAdding(false)}>Annuleer</button>
             </div>
           </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 8, padding: 8 }}>
+        {entries.map((entry, idx) => (
+          <Cell
+            key={idx}
+            dayKey={dayKey}
+            shiftKey={shiftKey}
+            entryIndex={idx}
+            entry={entry}
+            openPicker={openPicker}
+            employees={employees}
+            assignments={assignments}
+            p75={p75}
+            addAssignment={addAssignment}
+            removeAssignment={removeAssignment}
+            onChangeStart={onChangeStart}
+            onAddStart={onAddStart}
+            onRemoveStart={onRemoveStart}
+            onRemoveEntry={onRemoveEntry}
+          />
         ))}
       </div>
-
-      <div style={{ display: "grid", gap: 16, position: "sticky", top: 16, height: "fit-content" }}>
-        <Bench employees={employees} p75={p75} />
-        <Panel title="Bezetting & Standby (week)">
-          <NeedsEditor needs={needs} onChange={onNeedsChange} />
-        </Panel>
-      </div>
     </div>
   )
 }
 
-function Availability({ employees, days, availability, setAvailabilityByWeek, weekKey }) {
+function RoosterCellHeader({ role, count, onRemoveEntry }) {
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <Panel title="Beschikbaarheid per week">
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflowX: "auto" }}>
-          <table style={{ width: "100%", fontSize: 14 }}>
-            <thead><tr style={{ background: "#f9fafb" }}><th style={th()}>Medewerker</th>{days.map(d => (<th key={d.key} style={th()}>{d.label}</th>))}</tr></thead>
-            <tbody>
-              {employees.map(e => (
-                <tr key={e.id} style={{ borderTop: "1px solid #e5e7eb" }}>
-                  <td style={td(true)}>{e.name}</td>
-                  {days.map(d => (
-                    <td key={d.key} style={td()}>
-                      <AvailabilityPicker value={availability[e.id]?.[d.key]} onChange={(val) => {
-                        setAvailabilityByWeek(prev => { const copy = { ...prev }; const wk = { ...(copy[weekKey] || {}) }; const perEmp = { ...(wk[e.id] || {}) }; perEmp[d.key] = val; wk[e.id] = perEmp; copy[weekKey] = wk; return copy })
-                      }} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
+    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f3f4f6" }}>{role}</span>
+      <span style={{ color: "#6b7280" }}>{count}×</span>
+      <button title="Verwijder dienst" style={{ marginLeft: "auto", ...btnTiny() }} onClick={onRemoveEntry}>🗑</button>
     </div>
   )
 }
 
-function Employees({ employees, setEmployees, p75, setEditEmp }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-      <Panel title="Medewerkers">
-        <div style={{ display: "grid", gap: 8 }}>
-          {employees.map(e => (
-            <div key={e.id} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{e.name}</div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>€{e.wage.toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(', ') : 'geen'}</div>
-                <div style={{ fontSize: 11, color: "#6b7280" }}>FOH {e.skills.FOH ?? 0} · Host {e.skills.Host ?? 0} · Bar {e.skills.Bar ?? 0} · Runner {e.skills.Runner ?? 0} · AR {e.skills.Allround ?? 0}</div>
-                <div style={{ fontSize: 11, color: "#6b7280" }}>Standby: {e.allowedStandby ? 'ja' : 'nee'} · Open: {e.canOpen ? 'ja' : 'nee'} · Sluit: {e.canClose ? 'ja' : 'nee'}</div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={btnSm()} onClick={() => setEditEmp(e)}>Bewerk</button>
-                <button style={btnSm()} onClick={() => setEmployees(prev => prev.filter(x => x.id !== e.id))}>Verwijder</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-      <Panel title="Nieuwe medewerker"><NewEmployeeForm onAdd={(emp) => setEmployees(prev => [...prev, emp])} /></Panel>
-      <Panel title="Import (later)"><div style={{ fontSize: 14, color: "#6b7280" }}>CSV/Excel import volgt.</div></Panel>
-    </div>
-  )
-}
-
-function Settings() {
-  return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <Panel title="Kleuren & Branding"><div style={{ fontSize: 14, color: "#6b7280" }}>Kleuren gematcht aan brasserie1434.nl. Dark mode beschikbaar.</div></Panel>
-      <Panel title="Grenzen (weergave)">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 14 }}>
-          <LabeledInput label="Max opeenvolgende dagen" placeholder="5" />
-          <LabeledInput label="Min. rust (uur)" placeholder="11" />
-          <LabeledInput label="Max sluit→open per week" placeholder="1" />
-          <LabeledInput label="Max diensten/week" placeholder="5" />
-        </div>
-      </Panel>
-    </div>
-  )
-}
-
-function ExportView() {
-  return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <Panel title="WhatsApp (Business)"><div style={{ fontSize: 14, color: "#6b7280" }}>Automatisch versturen via WhatsApp Business.</div><button style={btn()} className="mt-2">Genereer & Verstuur</button></Panel>
-      <Panel title="Kalender (ICS)"><div style={{ fontSize: 14, color: "#6b7280" }}>Per medewerker een .ics.</div><button style={btn()}>Exporteer ICS</button></Panel>
-      <Panel title="PDF voor prikbord"><button style={btn()}>Download PDF</button></Panel>
-    </div>
-  )
-}
-
-function SelfTest({ selfTest }) {
-  return selfTest.failed.length === 0 ? (
-    <span style={{ marginLeft: 4, fontSize: 12, color: "#047857" }}>Alle {selfTest.passed} tests geslaagd.</span>
-  ) : (
-    <span style={{ marginLeft: 4, fontSize: 12, color: "#b91c1c" }}>{selfTest.failed.length} fout(en): {selfTest.failed.join(', ')}</span>
-  )
-}
-
-function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment, onChangeStart }) {
+function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment, onChangeStart, onAddStart, onRemoveStart, onRemoveEntry }) {
   const role = entry.role
   const [editKey, setEditKey] = useState(null)
-  const allHalfHours = useMemo(() => {
-    const times = []; const add = (h, m) => times.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
-    for (let h = 6; h <= 24; h++) { add(h % 24, 0); add(h % 24, 30) }
-    add(1, 0); add(1, 30)
-    return times
-  }, [])
+  const [addingStart, setAddingStart] = useState(false)
+  const [newStart, setNewStart] = useState("10:00")
+  const times = useMemo(() => halfHours(), [])
+
   return (
     <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, background: "white" }}>
-      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f3f4f6" }}>{role}</span>
-        <span style={{ color: "#6b7280" }}>{entry.count}×</span>
-      </div>
+      <RoosterCellHeader role={role} count={entry.count} onRemoveEntry={() => onRemoveEntry(dayKey, shiftKey, entryIndex)} />
       <div style={{ display: "grid", gap: 6 }}>
         {entry.starts.map((start, i) => {
           const k = `${dayKey}:${shiftKey}:${role}:${start}`
           const list = assignments[k] || []
-          const filled = list.length, spots = entry.count
+          const spots = (entry.starts.length > 1) ? 1 : entry.count
+          const filled = list.length
           const needOpen = requiresOpen(start)
           const needClose = requiresClose(start)
           const hasOpener = list.some(a => { const emp = employees.find(e => e.id === a.employeeId); return !!emp?.canOpen })
@@ -654,9 +718,10 @@ function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assi
                 <button style={{ marginLeft: "auto", ...btnSm() }} onClick={() => setEditKey(editKey === k ? null : k)}>🕒 Tijd</button>
                 {editKey === k && (
                   <select value={start} onChange={(e) => { const ns = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns) }} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                    {allHalfHours.map(t => (<option key={t} value={t}>{t}</option>))}
+                    {times.map(t => (<option key={t} value={t}>{t}</option>))}
                   </select>
                 )}
+                <button title="Verwijder start" style={btnSm()} onClick={() => onRemoveStart(dayKey, shiftKey, entryIndex, start)}>🗑</button>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {list.map((a, idx) => {
@@ -679,6 +744,19 @@ function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assi
             </div>
           )
         })}
+      </div>
+      <div style={{ marginTop: 6 }}>
+        {!addingStart ? (
+          <button style={btnSm()} onClick={() => setAddingStart(true)}>+ Start toevoegen</button>
+        ) : (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+            <select value={newStart} onChange={e => setNewStart(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+              {times.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <button style={btnSm()} onClick={() => { onAddStart(dayKey, shiftKey, entryIndex, newStart); setAddingStart(false) }}>Opslaan</button>
+            <button style={btnSm()} onClick={() => setAddingStart(false)}>Annuleer</button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -892,75 +970,112 @@ function NewEmployeeForm({ onAdd }) {
   const [name, setName] = useState('')
   const [wage, setWage] = useState(15)
   const [prefs, setPrefs] = useState([])
-  const [skills] = useState({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 })
+  const [skills, setSkills] = useState({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 })
   const [canOpen, setCanOpen] = useState(false)
   const [canClose, setCanClose] = useState(false)
   const [allowedStandby, setAllowedStandby] = useState(true)
   const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+
+  const skillInput = (key, label) => (
+    <label style={{ display: "grid", gap: 4 }}>
+      <span style={{ fontSize: 12 }}>{label}</span>
+      <input type="number" min={0} max={5} value={skills[key]} onChange={e => setSkills(s => ({ ...s, [key]: Math.max(0, Math.min(5, parseInt(e.target.value || '0', 10))) }))} style={{ width: 70, padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+    </label>
+  )
+
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Naam</span><input value={name} onChange={e => setName(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
       <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Uurloon (€)</span><input type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
-      <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
+      <div style={{ display: "flex", gap: 12, fontSize: 14, flexWrap: "wrap" }}>
         {['open', 'tussen', 'sluit'].map(p => (<label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={() => togglePref(p)} /> {p}</label>))}
         <label><input type="checkbox" checked={prefs.length === 0} onChange={() => setPrefs([])} /> geen voorkeur</label>
       </div>
-      <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
+      <div style={{ display: "flex", gap: 12, fontSize: 14, flexWrap: "wrap" }}>
+        {skillInput('FOH', 'FOH')}
+        {skillInput('Host', 'Host')}
+        {skillInput('Bar', 'Bar')}
+        {skillInput('Runner', 'Runner')}
+        {skillInput('Allround', 'Allround')}
+      </div>
+      <div style={{ display: "flex", gap: 12, fontSize: 14, flexWrap: "wrap" }}>
         <label><input type="checkbox" checked={canOpen} onChange={e => setCanOpen(e.target.checked)} /> kan openen</label>
         <label><input type="checkbox" checked={canClose} onChange={e => setCanClose(e.target.checked)} /> kan sluiten</label>
         <label><input type="checkbox" checked={allowedStandby} onChange={e => setAllowedStandby(e.target.checked)} /> mag standby</label>
       </div>
-      <button style={btn()} onClick={() => { if (!name) return; const id = 'e' + Math.random().toString(36).slice(2, 7); onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby }); setName(''); setPrefs([]); setCanOpen(false); setCanClose(false); setAllowedStandby(true) }}>Toevoegen</button>
+      <button style={btn()} onClick={() => {
+        if (!name) return
+        const id = 'e' + Math.random().toString(36).slice(2, 7)
+        onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby })
+        setName(''); setPrefs([]); setSkills({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 }); setCanOpen(false); setCanClose(false); setAllowedStandby(true)
+      }}>Toevoegen</button>
     </div>
   )
 }
 
-function AvailabilityPicker({ value, onChange }) {
-  const type = value?.type || 'all'
+function Availability({ employees, days, availability, setAvailabilityByWeek, weekKey }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-      <select value={type} onChange={e => onChange(e.target.value === 'all' ? { type: 'all' } : e.target.value === 'none' ? { type: 'none' } : { type: 'range', from: '10:00', to: '22:00' })} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-        <option value="all">Hele dag</option>
-        <option value="none">Niet</option>
-        <option value="range">Tijdvak</option>
-      </select>
-      {type === 'range' && (
-        <>
-          <input style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }} value={value?.from || '10:00'} onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })} />
-          <span>–</span>
-          <input style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }} value={value?.to || '22:00'} onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })} />
-        </>
-      )}
-    </div>
-  )
-}
-
-function NeedsEditor({ needs, onChange }) {
-  return (
-    <div style={{ display: "grid", gap: 8, fontSize: 14 }}>
-      {Object.entries(needs).map(([dayKey, shifts]) => (
-        <div key={dayKey} style={{ border: "1px solid #e5e7eb", borderRadius: 12 }}>
-          <div style={{ padding: "8px 12px", background: "#f9fafb", fontWeight: 600 }}>{dayKey.toUpperCase()}</div>
-          <div style={{ display: "grid", gap: 8, padding: 8 }}>
-            {Object.entries(shifts).map(([shiftKey, entries]) => (
-              <div key={shiftKey} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6, textTransform: "capitalize" }}>{shiftKey}</div>
-                {entries.map((e, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f3f4f6" }}>{e.role}</span>
-                    <span>{e.count}×</span>
-                    <div style={{ display: "flex", gap: 6 }}>{e.starts.map((s, i) => (<span key={i} style={{ padding: "2px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>{s}</span>))}</div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+    <div style={{ display: "grid", gap: 16 }}>
+      <Panel title="Beschikbaarheid per week">
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflowX: "auto" }}>
+          <table style={{ width: "100%", fontSize: 14 }}>
+            <thead><tr style={{ background: "#f9fafb" }}><th style={th()}>Medewerker</th>{days.map(d => (<th key={d.key} style={th()}>{d.label}</th>))}</tr></thead>
+            <tbody>
+              {employees.map(e => (
+                <tr key={e.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                  <td style={td(true)}>{e.name}</td>
+                  {days.map(d => (
+                    <td key={d.key} style={td()}>
+                      <AvailabilityPicker value={availability[e.id]?.[d.key]} onChange={(val) => {
+                        setAvailabilityByWeek(prev => { const copy = { ...prev }; const wk = { ...(copy[weekKey] || {}) }; const perEmp = { ...(wk[e.id] || {}) }; perEmp[d.key] = val; wk[e.id] = perEmp; copy[weekKey] = wk; return copy })
+                      }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
+      </Panel>
     </div>
   )
 }
 
+function Settings() {
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <Panel title="Kleuren & Branding"><div style={{ fontSize: 14, color: "#6b7280" }}>Kleuren gematcht aan brasserie1434.nl. Dark mode beschikbaar.</div></Panel>
+      <Panel title="Grenzen (weergave)">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 14 }}>
+          <LabeledInput label="Max opeenvolgende dagen" placeholder="5" />
+          <LabeledInput label="Min. rust (uur)" placeholder="11" />
+          <LabeledInput label="Max sluit→open per week" placeholder="1" />
+          <LabeledInput label="Max diensten/week" placeholder="5" />
+        </div>
+      </Panel>
+    </div>
+  )
+}
+
+function ExportView() {
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <Panel title="WhatsApp (Business)"><div style={{ fontSize: 14, color: "#6b7280" }}>Automatisch versturen via WhatsApp Business.</div><button style={btn()} className="mt-2">Genereer & Verstuur</button></Panel>
+      <Panel title="Kalender (ICS)"><div style={{ fontSize: 14, color: "#6b7280" }}>Per medewerker een .ics.</div><button style={btn()}>Exporteer ICS</button></Panel>
+      <Panel title="PDF voor prikbord"><button style={btn()}>Download PDF</button></Panel>
+    </div>
+  )
+}
+
+function SelfTest({ selfTest }) {
+  return selfTest.failed.length === 0 ? (
+    <span style={{ marginLeft: 4, fontSize: 12, color: "#047857" }}>Alle {selfTest.passed} tests geslaagd.</span>
+  ) : (
+    <span style={{ marginLeft: 4, fontSize: 12, color: "#b91c1c" }}>{selfTest.failed.length} fout(en): {selfTest.failed.join(', ')}</span>
+  )
+}
+
+/* ---------- helpers ---------- */
 function currentWeekKey() {
   const d = new Date()
   const iso = isoWeek(d)
@@ -974,8 +1089,6 @@ function isoWeek(date) {
   const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
   return { year: d.getUTCFullYear(), week: weekNo }
 }
-
-/* ---------- kleine UI helpers ---------- */
 function btn() { return { padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white" } }
 function btnSm() { return { padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", background: "white", fontSize: 12 } }
 function btnTiny() { return { padding: "2px 6px", borderRadius: 6, border: "1px solid #e5e7eb", background: "white", fontSize: 10 } }
