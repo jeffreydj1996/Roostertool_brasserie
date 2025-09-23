@@ -1,416 +1,843 @@
-import React, {useMemo, useState} from 'react'
+import React, { useMemo, useState, useEffect } from "react";
 
-const brand = { primary:'#1F2937', accent:'#C5A15E', bg:'#F8F7F4' }
-const roles = ['FOH','Host','Bar','Runner','Allround']
+const brand = { primary: "#1F2937", accent: "#C5A15E", bg: "#F8F7F4" };
 
 const days = [
-  { key:'ma', label:'Ma' },
-  { key:'di', label:'Di' },
-  { key:'wo', label:'Wo' },
-  { key:'do', label:'Do' },
-  { key:'vr', label:'Vr' },
-  { key:'za', label:'Za' },
-  { key:'zo', label:'Zo' },
-]
+  { key: "ma", label: "Ma" },
+  { key: "di", label: "Di" },
+  { key: "wo", label: "Wo" },
+  { key: "do", label: "Do" },
+  { key: "vr", label: "Vr" },
+  { key: "za", label: "Za" },
+  { key: "zo", label: "Zo" },
+];
+
+const roles = ["FOH", "Host", "Bar", "Runner", "Allround"]; // Standby apart
 
 const defaultNeeds = {
-  ma:{ standby:[{role:'Standby',count:1,starts:['13:00']}], lunch:[{role:'Allround',count:1,starts:['10:00']}], diner:[{role:'Allround',count:1,starts:['17:00']}] },
-  di:{ standby:[{role:'Standby',count:1,starts:['13:00']}], lunch:[{role:'Allround',count:1,starts:['10:00']}], diner:[{role:'Allround',count:1,starts:['17:00']}] },
-  wo:{ standby:[{role:'Standby',count:1,starts:['13:00']}], lunch:[{role:'Allround',count:1,starts:['10:00']}], diner:[{role:'Allround',count:1,starts:['17:00']}] },
-  do:{ standby:[{role:'Standby',count:1,starts:['13:00']}], lunch:[{role:'Allround',count:1,starts:['10:00']}], diner:[{role:'Allround',count:1,starts:['17:00']}] },
-  vr:{ standby:[{role:'Standby',count:1,starts:['12:00']}], lunch:[{role:'Allround',count:1,starts:['10:00']}], diner:[{role:'FOH',count:2,starts:['17:00','18:00']},{role:'Runner',count:1,starts:['17:00']},{role:'Bar',count:1,starts:['17:00']}] },
-  za:{ lunch:[{role:'FOH',count:1,starts:['10:00']},{role:'Bar',count:1,starts:['12:00']}], diner:[{role:'FOH',count:2,starts:['17:00','18:00']},{role:'Runner',count:1,starts:['17:00']},{role:'Bar',count:1,starts:['17:00']}] },
-  zo:{ lunch:[{role:'FOH',count:2,starts:['10:00','14:00']},{role:'Bar',count:1,starts:['12:00']}], diner:[{role:'FOH',count:1,starts:['17:00']},{role:'Bar',count:1,starts:['17:00']}] }
-}
+  ma: {
+    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
+    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
+    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
+  },
+  di: {
+    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
+    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
+    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
+  },
+  wo: {
+    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
+    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
+    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
+  },
+  do: {
+    standby: [{ role: "Standby", count: 1, starts: ["13:00"] }],
+    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
+    diner: [{ role: "Allround", count: 1, starts: ["17:00"] }],
+  },
+  vr: {
+    standby: [{ role: "Standby", count: 1, starts: ["12:00"] }],
+    lunch: [{ role: "Allround", count: 1, starts: ["10:00"] }],
+    diner: [
+      { role: "FOH", count: 2, starts: ["17:00", "18:00"] },
+      { role: "Runner", count: 1, starts: ["17:00"] },
+      { role: "Bar", count: 1, starts: ["17:00"] },
+    ],
+  },
+  za: {
+    lunch: [
+      { role: "FOH", count: 1, starts: ["10:00"] },
+      { role: "Bar", count: 1, starts: ["12:00"] },
+    ],
+    diner: [
+      { role: "FOH", count: 2, starts: ["17:00", "18:00"] },
+      { role: "Runner", count: 1, starts: ["17:00"] },
+      { role: "Bar", count: 1, starts: ["17:00"] },
+    ],
+  },
+  zo: {
+    lunch: [
+      { role: "FOH", count: 2, starts: ["10:00", "14:00"] },
+      { role: "Bar", count: 1, starts: ["12:00"] },
+    ],
+    diner: [
+      { role: "FOH", count: 1, starts: ["17:00"] },
+      { role: "Bar", count: 1, starts: ["17:00"] },
+    ],
+  },
+};
 
 const demoEmployees = [
-  { id:'e1', name:'Sanne', wage:18.5, skills:{FOH:5,Host:4,Bar:4,Runner:3,Allround:5}, canOpen:true, canClose:true, prefs:['sluit'], allowedStandby:true },
-  { id:'e2', name:'Ahmed', wage:15.0, skills:{FOH:4,Host:3,Bar:2,Runner:4,Allround:4}, canOpen:true, canClose:false, prefs:['open'], allowedStandby:true },
-  { id:'e3', name:'Lena', wage:22.0, skills:{FOH:5,Host:5,Bar:3,Runner:3,Allround:4}, canOpen:true, canClose:true, prefs:['tussen'], allowedStandby:false },
-]
+  { id: "e1", name: "Sanne", wage: 18.5, skills: { FOH: 5, Host: 4, Bar: 4, Runner: 3, Allround: 5 }, canOpen: true, canClose: true, prefs: ["sluit"], allowedStandby: true, isMentor: true, isRookie: false, preferWith: [], avoidWith: [] },
+  { id: "e2", name: "Ahmed", wage: 15.0, skills: { FOH: 4, Host: 3, Bar: 2, Runner: 4, Allround: 4 }, canOpen: true, canClose: false, prefs: ["open"], allowedStandby: true, isMentor: false, isRookie: true, preferWith: ["e1"], avoidWith: [] },
+  { id: "e3", name: "Lena", wage: 22.0, skills: { FOH: 5, Host: 5, Bar: 3, Runner: 3, Allround: 4 }, canOpen: true, canClose: true, prefs: ["tussen"], allowedStandby: false, isMentor: true, isRookie: false, preferWith: [], avoidWith: [] },
+];
 
-const pad2 = (n)=> (n<10?`0${n}`:String(n))
-const timeToMin = (str)=>{ const [h,m]=String(str).split(':').map(Number); return h*60+(m||0) }
-const minToTime = (min)=> `${pad2(Math.floor(min/60))}:${pad2(min%60)}`
-const isOpenTime = (t)=> timeToMin(t)<=600 // <=10:00
-const isCloseTime = (t)=> timeToMin(t)>=1020 // >=17:00
+function pad2(n){ return n<10?`0${n}`:String(n) }
+function timeToMin(str){ const [h,m] = String(str).split(":").map(Number); return (h||0)*60 + (m||0) }
+function minToTime(min){ const h=Math.floor(min/60), m=min%60; return `${pad2(h)}:${pad2(m)}` }
 
-const useP75 = (emps)=> useMemo(()=>{
-  const arr = [...emps.map(e=>e.wage)].sort((a,b)=>a-b)
-  if(!arr.length) return 0
-  const idx = Math.floor(0.75*(arr.length-1))
-  return arr[idx]
-},[emps])
+function prefFrom(shiftKey, start){
+  if(shiftKey === "standby") return null;
+  const m = timeToMin(start);
+  if(m<=600) return "open";
+  if(m>=720 && m<=840) return "tussen";
+  if(m>=1020) return "sluit";
+  return null;
+}
+function requiresOpen(start){ return timeToMin(start) <= 600 }
+function requiresClose(start){ return timeToMin(start) >= 1020 }
+
+function deepClone(o){ return JSON.parse(JSON.stringify(o)) }
+
+function useP75Wage(employees){
+  return useMemo(()=>{
+    const wages = employees.map(e=>e.wage).sort((a,b)=>a-b)
+    if(!wages.length) return 0
+    const idx = Math.floor(0.75*(wages.length-1))
+    return wages[idx]
+  },[employees])
+}
 
 export default function App(){
-  const [tab,setTab]=useState('rooster')
-  const [employees,setEmployees]=useState(demoEmployees)
-  const [needs,setNeeds]=useState(defaultNeeds)
-  const [assignments,setAssignments]=useState({}) // key: day:shift:role:time -> [{employeeId,standby}]
-  const [picker,setPicker]=useState(null) // {dayKey,shiftKey,role,time}
-  const [timeEdit,setTimeEdit]=useState(null) // {dayKey,shiftKey,entryIndex,startIndex,current}
-  const [addService,setAddService]=useState(null) // {dayKey,shiftKey}
-  const [editEmp,setEditEmp]=useState(null)
+  const [dark,setDark] = useState(false)
+  const [tab,setTab] = useState("rooster")
+  const [employees,setEmployees] = useState(demoEmployees)
+  const [needsByWeek,setNeedsByWeek] = useState({ [currentWeekKey()]: deepClone(defaultNeeds) })
+  const [assignmentsByWeek,setAssignmentsByWeek] = useState({})
+  const [availabilityByWeek,setAvailabilityByWeek] = useState({})
+  const [weekKey,setWeekKey] = useState(currentWeekKey())
+  const needs = needsByWeek[weekKey] || deepClone(defaultNeeds)
+  const assignments = assignmentsByWeek[weekKey] || {}
+  const availability = availabilityByWeek[weekKey] || {}
+  const [picker,setPicker] = useState(null)
+  const [editEmp,setEditEmp] = useState(null)
+  const [selectedDate,setSelectedDate] = useState(new Date())
+  const p75 = useP75Wage(employees)
+  const [selfTest,setSelfTest] = useState({passed:0, failed:[]})
 
-  const p75 = useP75(employees)
+  useEffect(()=>{ setSelfTest(runTests()) },[])
 
-  const weekCost = useMemo(()=>{
-    const byEmp = {}
-    Object.values(assignments).forEach(list=>{
-      // cost only for non-standby
-      const non = list.filter(a=>!a.standby)
-      if(non.length){
-        non.forEach(a=>{ byEmp[a.employeeId]=(byEmp[a.employeeId]||0)+1 })
+  function slotKey(dayKey, shiftKey, role, start){ return `${dayKey}:${shiftKey}:${role}:${start}` }
+
+  function isAvailable(empId, dayKey, start){
+    const rec = availability[empId]?.[dayKey]
+    if(!rec) return true
+    if(rec.type==='none') return false
+    if(rec.type==='all') return true
+    const startMin = timeToMin(start), endMin=startMin+7*60
+    const [fh,fm] = (rec.from||'00:00').split(':').map(Number)
+    const [th,tm] = (rec.to||'23:59').split(':').map(Number)
+    const a=fh*60+fm, b=th*60+tm
+    return startMin < b && a < endMin
+  }
+
+  function addAssignment(dayKey, shiftKey, role, start, employeeId){
+    setAssignmentsByWeek(prev=>{
+      const prevWeek = prev[weekKey] || {}
+      const conflict = Object.keys(prevWeek).some(k=>{
+        const [d,s,r] = k.split(':')
+        if(d!==dayKey) return false
+        const onThisKey = (prevWeek[k]||[]).some(a=>a.employeeId===employeeId)
+        if(!onThisKey) return false
+        const isSBnew = role==='Standby', isSBold = r==='Standby'
+        if(isSBnew || isSBold) return true
+        return s!==shiftKey
+      })
+      if(conflict) return prev
+      if(!isAvailable(employeeId, dayKey, start)) return prev
+      const emp = employees.find(e=>e.id===employeeId); if(!emp) return prev
+      if(role==='Standby' && !emp.allowedStandby) return prev
+      if(role!=='Standby'){
+        if((emp.skills[role]??0) < 3) return prev
+        if(requiresOpen(start) && !emp.canOpen) return prev
+        if(requiresClose(start) && !emp.canClose) return prev
       }
-    })
-    return Object.entries(byEmp).reduce((sum,[id,count])=>{
-      const emp = employees.find(e=>e.id===id)
-      return sum + (emp ? emp.wage*7 : 0)
-    },0)
-  },[assignments,employees])
-
-  const addAssignment = (dayKey, shiftKey, role, time, employeeId)=>{
-    setAssignments(prev=>{
-      // constraints: 1 dienst per dag & niet én standby én dienst
-      const hasAnyToday = Object.entries(prev).some(([k,list])=>{
-        const [d] = k.split(':'); if(d!==dayKey) return false
-        return list.some(a=>a.employeeId===employeeId)
-      })
-      const hasStandbyToday = Object.entries(prev).some(([k,list])=>{
-        const [d,,r] = k.split(':'); if(d!==dayKey) return false
-        return r==='Standby' && list.some(a=>a.employeeId===employeeId)
-      })
-      if(role==='Standby' && hasAnyToday) return prev
-      if(role!=='Standby' && hasStandbyToday) return prev
-
-      const key = `${dayKey}:${shiftKey}:${role}:${time}`
-      const list = prev[key]||[]
+      const key = slotKey(dayKey,shiftKey,role,start)
+      const list = prevWeek[key]||[]
       if(list.some(a=>a.employeeId===employeeId)) return prev
-      const next = { ...prev, [key]: [...list, {employeeId, standby:role==='Standby'}]}
-      return next
+      const nextWeek = { ...prevWeek, [key]: [...list, { employeeId, standby: role==='Standby' }] }
+      return { ...prev, [weekKey]: nextWeek }
     })
   }
 
-  const removeAssignment = (dayKey, shiftKey, role, time, employeeId)=>{
-    setAssignments(prev=>{
-      const key = `${dayKey}:${shiftKey}:${role}:${time}`
-      const list = prev[key]||[]
-      return { ...prev, [key]: list.filter(a=>a.employeeId!==employeeId) }
+  function removeAssignment(dayKey, shiftKey, role, start, employeeId){
+    setAssignmentsByWeek(prev=>{
+      const prevWeek = prev[weekKey] || {}
+      const key = slotKey(dayKey,shiftKey,role,start)
+      const list = prevWeek[key]||[]
+      const nextWeek = { ...prevWeek, [key]: list.filter(a=>a.employeeId!==employeeId) }
+      return { ...prev, [weekKey]: nextWeek }
     })
   }
 
-  const openGroupsStatus = (dayKey, time)=>{
-    // at least one opener and one closer for time groups that require it
-    const hasOpenNeed = isOpenTime(time)
-    const hasCloseNeed = isCloseTime(time)
-    let hasOpener=false, hasCloser=false
-    Object.entries(assignments).forEach(([k,list])=>{
-      const [d,,role,t]=k.split(':')
-      if(d===dayKey && t===time && role!=='Standby'){
-        list.forEach(a=>{
-          const emp = employees.find(e=>e.id===a.employeeId)
-          if(emp){ if(emp.canOpen) hasOpener=true; if(emp.canClose) hasCloser=true }
-        })
+  function candidateSort(role, shiftKey, start){
+    return (a,b)=>{
+      const p = prefFrom(shiftKey,start)
+      const ap = !!(p && (a.prefs||[]).includes(p))
+      const bp = !!(p && (b.prefs||[]).includes(p))
+      if(ap!==bp) return ap?-1:1
+      if(role!=='Standby'){
+        const sa=a.skills[role]??0, sb=b.skills[role]??0
+        if(sa!==sb) return sb-sa
       }
-    })
-    return { hasOpenNeed, hasCloseNeed, hasOpener, hasCloser }
+      return a.wage - b.wage
+    }
   }
 
-  const autofill = ()=>{
-    // greedy fill by need, pref, skill, wage; ensure group opener/closer coverage
+  function buildAutofillAssignments(){
     const next = {}
-    const byDay = {} // ensure 1 dienst per dag
+    const byDay = {}
     const byDayStandby = {}
-    const limitFor = (dayKey,shiftKey)=> ( (dayKey==='vr'&&shiftKey==='diner') || (dayKey==='za'&&shiftKey==='diner') ) ? 2 : 1
-    const p75v = p75
+    days.forEach(d=>{ byDay[d.key]=new Set(); byDayStandby[d.key]=new Set() })
 
     days.forEach(d=>{
-      const needDay = needs[d.key]
-      Object.entries(needDay).forEach(([shiftKey, entries])=>{
+      const dayNeeds = needs[d.key] || {}
+      Object.entries(dayNeeds).forEach(([shiftKey,entries])=>{
         entries.forEach(entry=>{
-          entry.starts.forEach(time=>{
-            const key = `${d.key}:${shiftKey}:${entry.role}:${time}`
-            let dure=0, limit=limitFor(d.key,shiftKey)
-            const cands = employees.filter(e=>{
+          entry.starts.forEach(start=>{
+            const key = slotKey(d.key,shiftKey,entry.role,start)
+            const candidates = employees.filter(e=>{
               if(entry.role==='Standby') return !!e.allowedStandby
               return (e.skills[entry.role]??0) >= 3
-            }).sort((a,b)=>{
-              const prefType = prefFromTime(time)
-              const ap = (a.prefs||[]).includes(prefType)
-              const bp = (b.prefs||[]).includes(prefType)
-              if(ap!==bp) return ap?-1:1
-              const sa = a.skills[entry.role]??0
-              const sb = b.skills[entry.role]??0
-              if(sa!==sb) return sb-sa
-              return a.wage-b.wage
-            })
-            const list=[]
-            const need = entry.count
-            const groupNeedsOpen = isOpenTime(time)
-            const groupNeedsClose = isCloseTime(time)
+            }).sort(candidateSort(entry.role, shiftKey, start))
+
+            let placed = []
+            let dureCount = 0
+            const limitDure = ((d.key==='vr'||d.key==='za') && shiftKey==='diner') ? 2 : 1
             let placedOpen=false, placedClose=false
+            let placedMentor=false, placedRookie=false
 
-            for(const c of cands){
-              if(list.length>=need) break
-              // availability is not modeled here (MVP) — could be added
-              const hasToday = (byDay[d.key]||new Set()).has(c.id)
-              const hasStand = (byDayStandby[d.key]||new Set()).has(c.id)
-              if(entry.role==='Standby'){ if(hasToday) continue } else { if(hasStand) continue }
-              if(entry.role!=='Standby' && c.wage>=p75v && dure>=limit) continue
-
-              // prefer to satisfy opener/closer first
-              if(groupNeedsOpen && !placedOpen && c.canOpen){ list.push({employeeId:c.id, standby:false}); placedOpen=true; if(c.wage>=p75v)dure++; (byDay[d.key]=byDay[d.key]||new Set()).add(c.id); continue }
-              if(groupNeedsClose && !placedClose && c.canClose){ list.push({employeeId:c.id, standby:false}); placedClose=true; if(c.wage>=p75v)dure++; (byDay[d.key]=byDay[d.key]||new Set()).add(c.id); continue }
-
-              // regular
-              list.push({employeeId:c.id, standby: entry.role==='Standby'})
-              if(entry.role==='Standby'){ (byDayStandby[d.key]=byDayStandby[d.key]||new Set()).add(c.id) }
-              else { (byDay[d.key]=byDay[d.key]||new Set()).add(c.id); if(c.wage>=p75v) dure++ }
+            for(const c of candidates){
+              if(placed.length >= entry.count) break
+              const hasShift = byDay[d.key].has(c.id)
+              const hasSB = byDayStandby[d.key].has(c.id)
+              if(entry.role==='Standby'){
+                if(hasShift) continue
+              } else {
+                if(hasSB) continue
+                if(requiresOpen(start) && !c.canOpen) continue
+                if(requiresClose(start) && !c.canClose) continue
+                if(c.wage>=p75 && dureCount>=limitDure) continue
+              }
+              if(entry.role!=='Standby'){
+                if(c.isMentor) placedMentor=true
+                if(c.isRookie) placedRookie=true
+              }
+              placed.push({ employeeId:c.id, standby: entry.role==='Standby' })
+              if(entry.role==='Standby') byDayStandby[d.key].add(c.id)
+              else { byDay[d.key].add(c.id); if(c.wage>=p75) dureCount++ }
+              if(entry.role!=='Standby'){
+                if(requiresOpen(start) && c.canOpen) placedOpen=true
+                if(requiresClose(start) && c.canClose) placedClose=true
+              }
             }
-            next[key]=list
+
+            if(entry.role!=='Standby' && placedRookie && !placedMentor){
+              const currentIds = new Set(placed.map(x=>x.employeeId))
+              const mentor = candidates.find(c=>!currentIds.has(c.id) && c.isMentor && !((byDay[d.key]||new Set()).has(c.id)))
+              if(mentor){
+                if(placed.length < entry.count){
+                  placed.push({employeeId:mentor.id, standby:false})
+                }else{
+                  let idxToSwap=-1, worstCost=-1
+                  placed.forEach((a,idx)=>{
+                    const emp = employees.find(e=>e.id===a.employeeId)
+                    if(!emp) return
+                    const isOpenReq = requiresOpen(start) && emp.canOpen
+                    const isCloseReq = requiresClose(start) && emp.canClose
+                    if(isOpenReq || isCloseReq) return
+                    if(emp.wage>worstCost){ worstCost=emp.wage; idxToSwap=idx }
+                  })
+                  if(idxToSwap>=0){ placed[idxToSwap] = {employeeId:mentor.id, standby:false} }
+                }
+              }
+            }
+
+            next[key] = placed
           })
         })
       })
     })
-    setAssignments(next)
+    return next
   }
 
-  const addServiceAt = (dayKey, shiftKey, role, time)=>{
-    setNeeds(prev=>{
-      const copy = {...prev}
-      copy[dayKey] = {...copy[dayKey]}
-      copy[dayKey][shiftKey] = [...(copy[dayKey][shiftKey]||[])]
-      // if same role exists, append time
-      const idx = copy[dayKey][shiftKey].findIndex(e=>e.role===role)
-      if(idx>=0){
-        const entry = {...copy[dayKey][shiftKey][idx]}
-        entry.starts = [...entry.starts]
-        if(!entry.starts.includes(time)) entry.starts.push(time)
-        copy[dayKey][shiftKey][idx] = entry
-      }else{
-        copy[dayKey][shiftKey].push({ role, count:1, starts:[time] })
+  function autofill(){
+    const next = buildAutofillAssignments()
+    setAssignmentsByWeek(prev=>({ ...prev, [weekKey]: next }))
+    setSelfTest(runTests(next))
+  }
+
+  function shiftCost(dayKey, shiftKey){
+    const byEmp = {}
+    Object.keys(assignments).forEach(k=>{
+      const [d,s] = k.split(':'); if(d!==dayKey||s!==shiftKey) return
+      (assignments[k]||[]).forEach(a=>{ if(!a.standby){ byEmp[a.employeeId] = true } })
+    })
+    return Object.keys(byEmp).reduce((sum,id)=>{
+      const emp = employees.find(e=>e.id===id); return sum + (emp? emp.wage*7 : 0)
+    },0)
+  }
+
+  function dayCost(dayKey){
+    return Object.keys(needs[dayKey]||{}).reduce((sum,s)=> sum + shiftCost(dayKey,s), 0)
+  }
+
+  const weekCost = useMemo(()=> days.reduce((acc,d)=> acc+dayCost(d.key), 0), [assignments,needs])
+
+  function warningsFor(dayKey, shiftKey){
+    const limit = ((dayKey==='vr'||dayKey==='za') && shiftKey==='diner') ? 2 : 1
+    const dure = new Set()
+    Object.keys(assignments).forEach(k=>{
+      const [d,s,role] = k.split(':')
+      if(d===dayKey && s===shiftKey && role!=="Standby"){
+        (assignments[k]||[]).forEach(a=>{
+          const emp = employees.find(e=>e.id===a.employeeId)
+          if(emp && emp.wage>=p75) dure.add(a.employeeId)
+        })
       }
-      return copy
     })
+    return { hasOver: dure.size>limit, dure: dure.size, limit }
   }
 
-  const updateStartTime = (dayKey, shiftKey, entryIndex, startIndex, newTime)=>{
-    setNeeds(prev=>{
-      const copy = {...prev}
-      const entry = {...copy[dayKey][shiftKey][entryIndex]}
-      const starts = [...entry.starts]
-      const oldTime = starts[startIndex]
-      starts[startIndex] = newTime
-      entry.starts = starts
-      copy[dayKey][shiftKey] = [...copy[dayKey][shiftKey]]
-      copy[dayKey][shiftKey][entryIndex] = entry
+  function dayAssignments(dayKey){
+    const rows = []
+    Object.keys(assignments).forEach(k=>{
+      const [d,s,role,start] = k.split(':')
+      if(d!==dayKey) return
+      (assignments[k]||[]).forEach(a=> rows.push({ role, start, employeeId:a.employeeId }))
+    })
+    return rows.sort((a,b)=> timeToMin(a.start)-timeToMin(b.start))
+  }
 
-      // move assignments to new key
-      const oldKey = `${dayKey}:${shiftKey}:${entry.role}:${oldTime}`
-      const newKey = `${dayKey}:${shiftKey}:${entry.role}:${newTime}`
-      setAssignments(prevA=>{
-        const list = prevA[oldKey]||[]
-        const next = {...prevA}
-        delete next[oldKey]
-        if(list.length){ next[newKey] = (next[newKey]||[]).concat(list) }
-        return next
+  function rosterMatrix(){
+    const headers = ["Naam", ...days.map(d=>d.label)]
+    const rows = employees.map(e=>{
+      const cols = days.map(d=>{
+        let standby=false, earliest=null
+        Object.keys(assignments).forEach(k=>{
+          const [day,shift,role,start] = k.split(':')
+          if(day!==d.key) return
+          (assignments[k]||[]).forEach(a=>{
+            if(a.employeeId!==e.id) return
+            if(role==='Standby') standby=true
+            else earliest = earliest==null? start : (timeToMin(start)<timeToMin(earliest)? start : earliest)
+          })
+        })
+        if(standby) return 'SB'
+        return earliest? earliest : 'x'
       })
-      return copy
+      return [e.name, ...cols]
     })
+    return { headers, rows }
   }
 
-  const prefFromTime = (time)=>{
-    const m = timeToMin(time)
-    if(m<=600) return 'open'
-    if(m>=720 && m<=840) return 'tussen'
-    if(m>=1020) return 'sluit'
-    return null
-  }
+  function changeDay(delta){ const d=new Date(selectedDate); d.setDate(d.getDate()+delta); setSelectedDate(d) }
 
   return (
-    <div>
-      <div className="container">
-        <div className="toolbar">
-          <div className="row">
-            <h1>Roostertool Brasserie <span className="tag">MVP</span></h1>
-            <button className="btn" onClick={()=>setTab('dashboard')}>Dashboard</button>
-            <button className="btn pri" onClick={()=>setTab('rooster')}>Rooster</button>
-            <button className="btn" onClick={()=>setTab('beschikbaarheid')}>Beschikbaarheid</button>
-            <button className="btn" onClick={()=>setTab('medewerkers')}>Medewerkers</button>
-          </div>
-          <div className="row">
-            <button className="btn" onClick={autofill}>Autofill</button>
-            <div className="pill"><span>P75</span><b>€{p75.toFixed(2)}</b></div>
-            <div className="pill"><span>Weekkosten</span><b>€{weekCost.toFixed(2)}</b></div>
-          </div>
-        </div>
-
-        {tab==='rooster' && (
-          <div className="grid" style={{gap:16}}>
-            {days.map(d=>(
-              <div key={d.key} className="card">
-                <div className="card-h">
-                  <b>{d.label}</b>
-                </div>
-                <div className="card-b grid grid-2">
-                  {Object.entries(needs[d.key]).map(([shiftKey, entries])=>(
-                    <div key={shiftKey} className="card" style={{borderColor:'#f1f1f1'}}>
-                      <div className="card-h">
-                        <div><b>{shiftKey==='standby'?'Standby (dag)':shiftKey}</b></div>
-                        <button className="btn" onClick={()=>setAddService({dayKey:d.key, shiftKey})}>+ Dienst toevoegen</button>
-                      </div>
-                      <div className="card-b grid" style={{gap:8}}>
-                        {entries.map((entry, ei)=>(
-                          <div key={ei} className="grid" style={{gap:6}}>
-                            <div className="row">
-                              <span className="badge">{entry.role}</span>
-                              <span className="k">{entry.count}×</span>
-                            </div>
-                            <div className="row">
-                              {entry.starts.map((t, si)=>(
-                                <button key={si} className="pill" onClick={()=>setTimeEdit({dayKey:d.key, shiftKey, entryIndex:ei, startIndex:si, current:t})}>
-                                  <span>{t}</span><span className="k">wijzig</span>
-                                </button>
-                              ))}
-                            </div>
-                            <div className="grid">
-                              {entry.starts.map((t, si)=>{
-                                const key = `${d.key}:${shiftKey}:${entry.role}:${t}`
-                                const list = assignments[key]||[]
-                                const status = entry.role==='Standby' ? null : openGroupsStatus(d.key,t)
-                                return (
-                                  <div key={si} className="grid" style={{gap:6}}>
-                                    {status && (
-                                      <div className="row">
-                                        {status.hasOpenNeed && <span className={status.hasOpener?'ok':'warn'}>{status.hasOpener?'Open OK':'Open ontbreekt'}</span>}
-                                        {status.hasCloseNeed && <span className={status.hasCloser?'ok':'warn'}>{status.hasCloser?'Sluit OK':'Sluit ontbreekt'}</span>}
-                                      </div>
-                                    )}
-                                    <div className="row">
-                                      {list.map((a,idx)=>{
-                                        const emp = employees.find(e=>e.id===a.employeeId)
-                                        return (
-                                          <span className="pill" key={idx}>
-                                            <b>{emp?emp.name:a.employeeId}</b>
-                                            {!a.standby && emp && emp.wage>=p75 && <span className="tag">Duur</span>}
-                                            <button title="Verwijder" onClick={()=>removeAssignment(d.key,shiftKey,entry.role,t, a.employeeId)}>×</button>
-                                          </span>
-                                        )
-                                      })}
-                                      {list.length < entry.count && (
-                                        <button className="btn" onClick={()=>setPicker({dayKey:d.key, shiftKey, role:entry.role, time:t})}>+ Voeg toe</button>
-                                      )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab==='medewerkers' && (
-          <div className="grid grid-2">
-            <div className="card">
-              <div className="card-h"><b>Medewerkers</b></div>
-              <div className="card-b grid" style={{gap:8}}>
-                {employees.map(e=>(
-                  <div key={e.id} className="row" style={{justifyContent:'space-between'}}>
-                    <div className="grid" style={{gap:4}}>
-                      <b>{e.name}</b>
-                      <div className="small">€{e.wage.toFixed(2)}/u · Pref: {(e.prefs&&e.prefs.length)?e.prefs.join(', '):'geen'}</div>
-                      <div className="small">FOH {e.skills.FOH??0} · Host {e.skills.Host??0} · Bar {e.skills.Bar??0} · Runner {e.skills.Runner??0} · AR {e.skills.Allround??0}</div>
-                      <div className="small">Standby: {e.allowedStandby?'ja':'nee'} · Open: {e.canOpen?'ja':'nee'} · Sluit: {e.canClose?'ja':'nee'}</div>
-                    </div>
-                    <div className="row">
-                      <button className="btn" onClick={()=>setEditEmp(e)}>Bewerk</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+    <div className={dark?"dark":""}>
+      <div className="min-h-screen" style={{ background: brand.bg, color: '#111' }}>
+        <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl" style={{ background: brand.accent }} />
+              <div className="font-semibold">Roostertool Brasserie</div>
+              <span className="text-xs px-2 py-0.5 rounded-full border">MVP</span>
             </div>
-            <div className="card">
-              <div className="card-h"><b>Nieuwe medewerker</b></div>
-              <div className="card-b"><NewEmployee onAdd={(emp)=>setEmployees(prev=>[...prev, emp])} /></div>
+            <nav className="hidden md:flex items-center gap-1">
+              <Tab label="Dashboard" active={tab==='dashboard'} onClick={()=>setTab('dashboard')} />
+              <Tab label="Rooster" active={tab==='rooster'} onClick={()=>setTab('rooster')} />
+              <Tab label="Beschikbaarheid" active={tab==='beschikbaarheid'} onClick={()=>setTab('beschikbaarheid')} />
+              <Tab label="Medewerkers" active={tab==='medewerkers'} onClick={()=>setTab('medewerkers')} />
+              <Tab label="Instellingen" active={tab==='instellingen'} onClick={()=>setTab('instellingen')} />
+              <Tab label="Export" active={tab==='export'} onClick={()=>setTab('export')} />
+            </nav>
+            <div className="flex items-center gap-2">
+              <input type="week" className="px-2 py-1 rounded border" value={weekKey} onChange={e=>setWeekKey(e.target.value)} />
+              <button className="px-3 py-1.5 rounded-lg border" onClick={()=>setDark(v=>!v)}>{dark?"Light":"Dark"}</button>
             </div>
           </div>
-        )}
+        </header>
 
+        <main className="max-w-7xl mx-auto px-4 py-6">
+          {tab==='dashboard' && <Dashboard selectedDate={selectedDate} changeDay={changeDay} employees={employees} dayAssignments={dayAssignments} weekCost={weekCost} rosterMatrix={rosterMatrix} />}
+          {tab==='rooster' && <Rooster needs={needs} days={days} employees={employees} assignments={assignments} warningsFor={warningsFor} shiftCost={shiftCost} dayCost={dayCost} p75={p75} setPicker={setPicker} addAssignment={addAssignment} removeAssignment={removeAssignment} onNeedsChange={(next)=>setNeedsByWeek(prev=>({ ...prev, [weekKey]: next }))} />}
+          {tab==='beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
+          {tab==='medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
+          {tab==='instellingen' && <Settings />}
+          {tab==='export' && <ExportView />}
+        </main>
+
+        <footer className="py-8 text-center text-xs text-gray-500">© Roostertool Brasserie — MVP Prototype</footer>
       </div>
 
-      {picker && <AssignModal ctx={picker} onClose={()=>setPicker(null)} employees={employees} assignments={assignments} addAssignment={addAssignment} p75={p75} />}
-      {timeEdit && <TimePicker current={timeEdit.current} onSelect={(t)=>{ updateStartTime(timeEdit.dayKey,timeEdit.shiftKey,timeEdit.entryIndex,timeEdit.startIndex,t); setTimeEdit(null) }} onClose={()=>setTimeEdit(null)} />}
-      {addService && <AddServiceModal ctx={addService} onClose={()=>setAddService(null)} onAdd={({role,time})=>{ addServiceAt(addService.dayKey, addService.shiftKey, role, time); setAddService(null) }} />}
-      {editEmp && <EditEmployeeModal emp={editEmp} onClose={()=>setEditEmp(null)} onSave={(e)=>{ setEmployees(prev=>prev.map(x=>x.id===e.id?e:x)); setEditEmp(null) }} />}
+      {picker && (
+        <AssignModal
+          onClose={()=>setPicker(null)}
+          onChoose={(empId)=>{ addAssignment(picker.dayKey,picker.shiftKey,picker.role,picker.start,empId); setPicker(null) }}
+          employees={employees}
+          assignments={assignments}
+          dayKey={picker.dayKey}
+          shiftKey={picker.shiftKey}
+          role={picker.role}
+          start={picker.start}
+          p75={p75}
+          availability={availability}
+        />
+      )}
+
+      {editEmp && (
+        <EditEmployeeModal
+          employee={editEmp}
+          onClose={()=>setEditEmp(null)}
+          onSave={(updated)=>{ setEmployees(prev=>prev.map(e=>e.id===updated.id? updated : e)); setEditEmp(null) }}
+          employees={employees}
+        />
+      )}
+
+      <div className="mt-6 max-w-7xl mx-auto px-4">
+        <div className="rounded-2xl border p-4">
+          <button className="px-3 py-1.5 rounded-lg border" onClick={autofill}>Autofill</button>
+          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">P75: €{p75.toFixed(2)}</span>
+          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-gray-100">Weekkosten: €{weekCost.toFixed(2)}</span>
+          <SelfTest selfTest={selfTest} />
+        </div>
+      </div>
+    </div>
+  )
+
+  function runTests(override){
+    const state = override || buildAutofillAssignments()
+    const fails = []
+    if(!Object.keys(state).every(k=>Array.isArray(state[k]))) fails.push('T1: Slot niet als array')
+    const anySB = Object.keys(state).find(k=>k.includes(':Standby:'))
+    if(anySB && state[anySB][0]){
+      const a = state[anySB][0]
+      const emp = employees.find(e=>e.id===a.employeeId)
+      const cost = a.standby? 0 : (emp? emp.wage*7 : 0)
+      if(cost!==0) fails.push('T2: Standby rekent kosten')
+    }
+    const byDayEmp = {}
+    Object.keys(state).forEach(k=>{
+      const [d,s,r,start] = k.split(':')
+      ;(state[k]||[]).forEach(a=>{
+        byDayEmp[d] = byDayEmp[d] || {}
+        byDayEmp[d][a.employeeId] = byDayEmp[d][a.employeeId] || { standby:false, shifts:new Set(), open:false, close:false }
+        if(r==='Standby') byDayEmp[d][a.employeeId].standby=true
+        byDayEmp[d][a.employeeId].shifts.add(s)
+        if(r!=='Standby'){
+          if(requiresOpen(start)) byDayEmp[d][a.employeeId].open=true
+          if(requiresClose(start)) byDayEmp[d][a.employeeId].close=true
+        }
+      })
+    })
+    Object.entries(byDayEmp).forEach(([day,empMap])=>{
+      Object.entries(empMap).forEach(([empId,info])=>{
+        if(info.shifts.size>1) fails.push('T3: meerdere shifts op 1 dag')
+        if(info.standby && (info.shifts.size>1 || !info.shifts.has('standby'))) fails.push('T3: standby gecombineerd met andere shift')
+        const emp = employees.find(e=>e.id===empId)
+        if(emp){ if(info.open && !emp.canOpen) fails.push('T7: open zonder bevoegdheid'); if(info.close && !emp.canClose) fails.push('T8: sluit zonder bevoegdheid') }
+      })
+    })
+    const countDure=(dayKey,shiftKey)=>{
+      const set=new Set()
+      Object.keys(state).forEach(k=>{
+        const [d,s,r] = k.split(':')
+        if(d===dayKey && s===shiftKey && r!=='Standby'){
+          (state[k]||[]).forEach(a=>{ const emp=employees.find(e=>e.id===a.employeeId); if(emp && emp.wage>=p75) set.add(a.employeeId) })
+        }
+      })
+      return set.size
+    }
+    if(countDure('vr','diner')>2) fails.push('T4: Dure-limiet vr-diner overschreden')
+    if(countDure('za','diner')>2) fails.push('T4: Dure-limiet za-diner overschreden')
+    Object.keys(state).forEach(k=>{
+      const [, , role] = k.split(':')
+      if(role==='Standby') return
+      ;(state[k]||[]).forEach(a=>{ const emp=employees.find(e=>e.id===a.employeeId); if(emp && ((emp.skills[role]??0)<3)) fails.push('T5: skill <3 ingepland') })
+    })
+    const needSB=(dayKey)=> (needs[dayKey]?.standby?.[0]?.count)||0
+    days.forEach(d=>{ const assigned = Object.keys(state).filter(k=>k.startsWith(`${d.key}:standby:Standby:`)).reduce((n,k)=> n + ((state[k]||[]).length), 0); if(assigned>needSB(d.key)) fails.push(`T6: Te veel standby op ${d.key}`) })
+
+    return { passed: 8, failed: fails }
+  }
+}
+
+function Dashboard({ selectedDate, changeDay, employees, dayAssignments, weekCost, rosterMatrix }){
+  return (
+    <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+        <div className="xl:col-span-3 space-y-4">
+          <Panel title="Vandaag">
+            <div className="flex items-center justify-between mb-3">
+              <button className="px-2 py-1 rounded border" onClick={()=>changeDay(-1)}>◀︎</button>
+              <div className="text-lg font-semibold">{selectedDate.toLocaleDateString('nl-NL',{ weekday:'long', day:'2-digit', month:'long' })}</div>
+              <button className="px-2 py-1 rounded border" onClick={()=>changeDay(1)}>▶︎</button>
+            </div>
+            <div className="rounded-xl border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50"><tr><th className="text-left px-3 py-2">Start</th><th className="text-left px-3 py-2">Rol</th><th className="text-left px-3 py-2">Medewerker</th></tr></thead>
+                <tbody>
+                  {dayAssignments(days[selectedDate.getDay()===0?6:selectedDate.getDay()-1].key).map((r,i)=>{
+                    const emp = employees.find(e=>e.id===r.employeeId)
+                    return (<tr key={i} className="border-t"><td className="px-3 py-2">{r.role==='Standby'? '—' : r.start}</td><td className="px-3 py-2">{r.role}</td><td className="px-3 py-2">{emp?.name||r.employeeId}</td></tr>)
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+          <Panel title="Dekking & Skills"><div className="text-sm text-gray-600">Visuals voor dekking (per rol) en teamscore.</div></Panel>
+        </div>
+        <div className="space-y-4">
+          <Panel title="Weekkosten"><div className="text-3xl font-semibold">€{weekCost.toFixed(2)}</div><div className="text-xs text-gray-500">Som (excl. Standby). 7u/dienst.</div></Panel>
+          <Panel title="Beschikbaarheid (week)"><div className="text-sm">Overzicht in tab "Beschikbaarheid"</div></Panel>
+        </div>
+      </div>
+      <Panel title="Weekrooster (CSV-formaat)">
+        <div className="rounded-xl border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50">{rosterMatrix().headers.map((h,i)=>(<th key={i} className="text-left px-3 py-2">{h}</th>))}</tr></thead>
+            <tbody>{rosterMatrix().rows.map((row,r)=>(<tr key={r} className="border-t">{row.map((cell,c)=>(<td key={c} className="px-3 py-2">{cell}</td>))}</tr>))}</tbody>
+          </table>
+        </div>
+      </Panel>
     </div>
   )
 }
 
-function AssignModal({ctx, onClose, employees, assignments, addAssignment, p75}){
-  const {dayKey, shiftKey, role, time} = ctx
-  const [q,setQ]=useState('')
-  const candidates = employees.map(e=>{
-    let eligible=true, reason=''
-    if(role!=='Standby' && (e.skills[role]??0)<3){ eligible=false; reason='Skill < 3' }
-    if(role==='Standby' && !e.allowedStandby){ eligible=false; reason='Mag geen Standby' }
+function Rooster({ needs, days, employees, assignments, warningsFor, shiftCost, dayCost, p75, setPicker, addAssignment, removeAssignment, onNeedsChange }){
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+      <div className="xl:col-span-3 space-y-4">
+        {days.map(d=> (
+          <div key={d.key} className="rounded-2xl border bg-white/60 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2" style={{ background: brand.bg }}>
+              <div className="font-semibold">{d.label}</div>
+              <div className="text-xs text-gray-500">Kosten: €{dayCost(d.key).toFixed(2)}</div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3 p-3">
+              {Object.entries(needs[d.key]).map(([shiftKey, entries])=> (
+                <div key={shiftKey} className="rounded-xl border">
+                  <div className="flex items-center justify-between px-3 py-2 bg-gray-50">
+                    <div className="text-sm font-medium capitalize">{shiftKey==='standby'? 'Standby (dag)':shiftKey}</div>
+                    <ShiftWarningsBadge info={warningsFor(d.key, shiftKey)} />
+                    <div className="text-xs text-gray-500">Kosten: €{shiftCost(d.key,shiftKey).toFixed(2)}</div>
+                  </div>
+                  <div className="grid lg:grid-cols-2 gap-2 p-2">
+                    {entries.map((entry, idx)=> (
+                      <Cell key={idx} dayKey={d.key} shiftKey={shiftKey} entry={entry} openPicker={setPicker} employees={employees} assignments={assignments} p75={p75} addAssignment={addAssignment} removeAssignment={removeAssignment} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="space-y-4">
+        <Bench employees={employees} p75={p75} />
+        <Panel title="Bezetting & Standby (week)">
+          <NeedsEditor needs={needs} onChange={onNeedsChange} />
+        </Panel>
+      </div>
+    </div>
+  )
+}
 
-    // one per day constraint
-    const hasAnyToday = Object.entries(assignments).some(([k,list])=>{
-      const [d] = k.split(':'); if(d!==dayKey) return false
-      return list.some(a=>a.employeeId===e.id)
-    })
-    const hasStandbyToday = Object.entries(assignments).some(([k,list])=>{
-      const [d,,r] = k.split(':'); if(d!==dayKey) return false
-      return r==='Standby' && list.some(a=>a.employeeId===e.id)
-    })
-    if(role==='Standby' && hasAnyToday){ eligible=false; reason='Heeft al dienst' }
-    if(role!=='Standby' && hasStandbyToday){ eligible=false; reason='Staat al Standby' }
+function Availability({ employees, days, availability, setAvailabilityByWeek, weekKey }){
+  return (
+    <div className="grid gap-4">
+      <Panel title="Beschikbaarheid per week">
+        <div className="rounded-xl border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50"><th className="text-left px-3 py-2">Medewerker</th>{days.map(d=>(<th key={d.key} className="text-left px-3 py-2">{d.label}</th>))}</tr></thead>
+            <tbody>
+              {employees.map(e=>(
+                <tr key={e.id} className="border-t">
+                  <td className="px-3 py-2 font-medium">{e.name}</td>
+                  {days.map(d=>(
+                    <td key={d.key} className="px-3 py-2">
+                      <AvailabilityPicker value={availability[e.id]?.[d.key]} onChange={(val)=>{
+                        setAvailabilityByWeek(prev=>{ const copy={...prev}; const wk={ ...(copy[weekKey]||{}) }; const perEmp={ ...(wk[e.id]||{}) }; perEmp[d.key]=val; wk[e.id]=perEmp; copy[weekKey]=wk; return copy })
+                      }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </div>
+  )
+}
 
-    if(q && !e.name.toLowerCase().includes(q.toLowerCase())) eligible=false
-    return {e, eligible, reason}
-  }).filter(row=>row.eligible).sort((a,b)=>{
-    const pref = (t)=>{
-      const m = timeToMin(t)
-      if(m<=600) return 'open'
-      if(m>=720 && m<=840) return 'tussen'
-      if(m>=1020) return 'sluit'
-      return null
+function Employees({ employees, setEmployees, p75, setEditEmp }){
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Panel title="Medewerkers">
+        <div className="space-y-2">
+          {employees.map(e=> (
+            <div key={e.id} className="border rounded-xl p-2 flex items-center justify-between">
+              <div>
+                <div className="font-medium">{e.name}</div>
+                <div className="text-xs text-gray-500">€{e.wage.toFixed(2)}/u · Pref: {e.prefs&&e.prefs.length? e.prefs.join(', '): 'geen'}</div>
+                <div className="text-[11px] text-gray-500">FOH {e.skills.FOH??0} · Host {e.skills.Host??0} · Bar {e.skills.Bar??0} · Runner {e.skills.Runner??0} · AR {e.skills.Allround??0}</div>
+                <div className="text-[11px] text-gray-500">Standby: {e.allowedStandby?'ja':'nee'} · Open: {e.canOpen?'ja':'nee'} · Sluit: {e.canClose?'ja':'nee'}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="text-[11px] px-2 py-1 rounded-md border" onClick={()=>setEditEmp(e)}>Bewerk</button>
+                <button className="text-[11px] px-2 py-1 rounded-md border" onClick={()=>setEmployees(prev=>prev.filter(x=>x.id!==e.id))}>Verwijder</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Nieuwe medewerker"><NewEmployeeForm onAdd={(emp)=>setEmployees(prev=>[...prev,emp])} /></Panel>
+      <Panel title="Import (later)"><div className="text-sm text-gray-500">CSV/Excel import volgt.</div></Panel>
+    </div>
+  )
+}
+
+function Settings(){
+  return (
+    <div className="grid gap-4">
+      <Panel title="Kleuren & Branding"><div className="text-sm text-gray-600">Kleuren gematcht aan brasserie1434.nl. Dark mode beschikbaar.</div></Panel>
+      <Panel title="Grenzen (weergave)"><div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"><LabeledInput label="Max opeenvolgende dagen" placeholder="5" /><LabeledInput label="Min. rust (uur)" placeholder="11" /><LabeledInput label="Max sluit→open per week" placeholder="1" /><LabeledInput label="Max diensten/week" placeholder="5" /></div></Panel>
+    </div>
+  )
+}
+
+function ExportView(){
+  return (
+    <div className="grid gap-4">
+      <Panel title="WhatsApp (Business)"><div className="text-sm text-gray-600">Automatisch versturen via WhatsApp Business.</div><button className="mt-2 px-3 py-1.5 rounded-lg border">Genereer & Verstuur</button></Panel>
+      <Panel title="Kalender (ICS)"><div className="text-sm text-gray-600">Per medewerker een .ics.</div><button className="mt-2 px-3 py-1.5 rounded-lg border">Exporteer ICS</button></Panel>
+      <Panel title="PDF voor prikbord"><button className="px-3 py-1.5 rounded-lg border">Download PDF</button></Panel>
+    </div>
+  )
+}
+
+function SelfTest({ selfTest }){
+  return selfTest.failed.length===0 ? (
+    <span className="ml-3 text-xs text-green-700">Alle {selfTest.passed} tests geslaagd.</span>
+  ) : (
+    <span className="ml-3 text-xs text-red-700">{selfTest.failed.length} fout(en): {selfTest.failed.join(', ')}</span>
+  )
+}
+
+function Cell({ dayKey, shiftKey, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment }){
+  const role = entry.role
+  return (
+    <div className="border rounded-xl p-2 bg-white/70">
+      <div className="text-xs font-medium mb-1 flex items-center gap-2"><span className="px-2 py-0.5 rounded-full bg-gray-100">{role}</span><span className="text-gray-500">{entry.count}×</span></div>
+      <div className="space-y-1">
+        {entry.starts.map((start,i)=>{
+          const key = `${dayKey}:${shiftKey}:${role}:${start}`
+          const list = assignments[key]||[]
+          const filled = list.length, spots = entry.count
+          const status = role==='Standby' ? null : openGroupsStatus(dayKey,start,assignments,employees)
+          const mstatus = role==='Standby' ? null : mentorStatusView(dayKey,start,assignments,employees)
+          return (
+            <div key={i} className="rounded-lg border p-1">
+              <div className="text-[11px] text-gray-600 mb-1">
+                Start {start} · {filled}/{spots}
+                {status && (
+                  <>
+                    {status.hasOpenNeed && <span className={status.hasOpener?'ml-2 px-2 py-0.5 rounded bg-green-100 text-green-700':'ml-2 px-2 py-0.5 rounded bg-red-100 text-red-700'}>{status.hasOpener?'Open OK':'Open ontbreekt'}</span>}
+                    {status.hasCloseNeed && <span className={status.hasCloser?'ml-2 px-2 py-0.5 rounded bg-green-100 text-green-700':'ml-2 px-2 py-0.5 rounded bg-red-100 text-red-700'}>{status.hasCloser?'Sluit OK':'Sluit ontbreekt'}</span>}
+                  </>
+                )}
+                {mstatus?.hasRookie && <span className={mstatus.hasMentor?'ml-2 px-2 py-0.5 rounded bg-green-100 text-green-700':'ml-2 px-2 py-0.5 rounded bg-red-100 text-red-700'}>{mstatus.hasMentor?'Mentor OK':'Mentor ontbreekt'}</span>}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {list.map((a,idx)=>{
+                  const emp = employees.find(e=>e.id===a.employeeId)
+                  return <BadgeAssignment key={idx} assignment={a} employee={emp} p75={p75} onRemove={()=>removeAssignment(dayKey,shiftKey,role,start,a.employeeId)} />
+                })}
+                {Array.from({length: Math.max(spots-filled,0)}).map((_,j)=>(
+                  <button key={j} className="text-[11px] px-2 py-1 rounded-md border border-dashed hover:border-solid hover:bg-gray-50" onClick={()=>openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function openGroupsStatus(dayKey,time,assignments,employees){
+  const groupNeedsOpen = timeToMin(time)<=600
+  const groupNeedsClose = timeToMin(time)>=1020
+  let hasOpener=false, hasCloser=false
+  Object.entries(assignments).forEach(([k,list])=>{
+    const [d,,role,t]=k.split(':')
+    if(d===dayKey && t===time && role!=='Standby'){
+      list.forEach(a=>{
+        const emp = employees.find(e=>e.id===a.employeeId)
+        if(!emp) return
+        if(emp.canOpen) hasOpener=true
+        if(emp.canClose) hasCloser=true
+      })
     }
-    const ap = (a.e.prefs||[]).includes(pref(time))
-    const bp = (b.e.prefs||[]).includes(pref(time))
+  })
+  return { hasOpenNeed:groupNeedsOpen, hasCloseNeed:groupNeedsClose, hasOpener, hasCloser }
+}
+function mentorStatusView(dayKey,time,assignments,employees){
+  let hasRookie=false, hasMentor=false
+  Object.entries(assignments).forEach(([k,list])=>{
+    const [d,,role,t]=k.split(':')
+    if(d===dayKey && t===time && role!=='Standby'){
+      list.forEach(a=>{
+        const emp = employees.find(e=>e.id===a.employeeId)
+        if(emp){ if(emp.isRookie) hasRookie=true; if(emp.isMentor) hasMentor=true }
+      })
+    }
+  })
+  return { hasRookie, hasMentor }
+}
+
+function Bench({ employees, p75 }){
+  return (
+    <div className="sticky top-4">
+      <div className="mb-2 text-xs uppercase tracking-wide text-gray-500">Beschikbaar</div>
+      <div className="space-y-2">
+        {employees.slice().sort((a,b)=>a.wage-b.wage).map(e=> (
+          <div key={e.id} className="rounded-xl border bg-white/70 p-2 flex items-center justify-between">
+            <div>
+              <div className="font-medium">{e.name}</div>
+              <div className="text-xs text-gray-500">€{e.wage.toFixed(2)}/u · Pref: {e.prefs&&e.prefs.length? e.prefs.join(', '): 'geen'}</div>
+              <div className="text-[11px] text-gray-500">FOH {e.skills.FOH??0} · Host {e.skills.Host??0} · Bar {e.skills.Bar??0} · Runner {e.skills.Runner??0} · AR {e.skills.Allround??0}</div>
+            </div>
+            <div className="flex items-center gap-1">{e.wage>=p75 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-600">Duur</span>}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BadgeAssignment({ assignment, employee, p75, onRemove }){
+  if(!employee) return null
+  return (
+    <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white shadow-sm border">
+      <span className="text-[11px] font-medium">{employee.name}</span>
+      {assignment.standby && <span className="text-[10px] px-1 rounded bg-gray-200">Standby</span>}
+      {employee.wage>=p75 && !assignment.standby && <span className="text-[10px] px-1 rounded bg-red-100 text-red-600">Duur</span>}
+      <span className="text-[10px] text-gray-500">€{employee.wage.toFixed(2)}/u</span>
+      <button className="ml-1 text-[10px] px-1.5 py-0.5 rounded border hover:bg-gray-50" onClick={onRemove}>X</button>
+    </div>
+  )
+}
+
+function Panel({ title, children }){
+  return (
+    <div className="rounded-2xl border bg-white/70">
+      <div className="px-4 py-2 border-b flex items-center justify-between" style={{ borderColor: "#eee" }}>
+        <div className="font-medium">{title}</div>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  )
+}
+
+function Tab({ label, active, onClick }){
+  return <button onClick={onClick} className={`px-3 py-1.5 rounded-lg border ${active? 'bg-gray-900 text-white':'hover:bg-gray-50'}`}>{label}</button>
+}
+
+function LabeledInput({ label, placeholder }){
+  return (<label className="grid gap-1"><span className="text-sm text-gray-700">{label}</span><input className="px-3 py-2 rounded-lg border bg-white/70" placeholder={placeholder} /></label>)
+}
+
+function ShiftWarningsBadge({ info }){
+  if(!info) return null
+  const cls = info.hasOver? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+  return <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{info.dure}/{info.limit}</span>
+}
+
+function AssignModal({ onClose, onChoose, employees, assignments, dayKey, shiftKey, role, start, p75, availability }){
+  const [q,setQ] = useState('')
+  const isStandby = role==='Standby'
+
+  function isAvail(empId){
+    const rec = availability[empId]?.[dayKey]
+    if(!rec || rec.type==='all') return true
+    if(rec.type==='none') return false
+    const startMin = timeToMin(start), endMin = startMin + 7*60
+    const [fh,fm] = (rec.from||'00:00').split(':').map(Number)
+    const [th,tm] = (rec.to||'23:59').split(':').map(Number)
+    const a=fh*60+fm, b=th*60+tm
+    return startMin < b && a < endMin
+  }
+
+  function hasAnyAssignmentInDay(empId){
+    return Object.keys(assignments).some(k=>{
+      const [d] = k.split(':'); if(d!==dayKey) return false
+      return (assignments[k]||[]).some(a=>a.employeeId===empId)
+    })
+  }
+  function hasStandbyInDay(empId){
+    return Object.keys(assignments).some(k=>{
+      const [d,,r] = k.split(':'); if(d!==dayKey) return false
+      if(r!=="Standby") return false
+      return (assignments[k]||[]).some(a=>a.employeeId===empId)
+    })
+  }
+
+  const groupIds = new Set(Object.entries(assignments).flatMap(([k,list])=>{
+    const [d,,r,t]=k.split(':'); if(d!==dayKey || t!==start || r==='Standby') return []
+    return list.map(a=>a.employeeId)
+  }))
+
+  const candidates = employees.map(e=>{
+    let eligible = true, reason = ''
+    if(!isAvail(e.id)){ eligible=false; reason='Niet beschikbaar' }
+    if(isStandby && !e.allowedStandby){ eligible=false; reason='Niet bevoegd voor Standby' }
+    const already = hasAnyAssignmentInDay(e.id)
+    const sbToday = hasStandbyInDay(e.id)
+    if(isStandby){ if(already){ eligible=false; reason='Heeft al een dienst vandaag' } }
+    else {
+      if((e.skills[role]??0) < 3){ eligible=false; reason='Skill < 3' }
+      if(requiresOpen(start) && !e.canOpen){ eligible=false; reason='Kan niet openen' }
+      if(requiresClose(start) && !e.canClose){ eligible=false; reason='Kan niet sluiten' }
+      if(sbToday){ eligible=false; reason='Staat al Standby vandaag' }
+      const avoid = new Set(e.avoidWith||[])
+      for(const gid of groupIds){ if(avoid.has(gid)){ eligible=false; reason='Liever niet samen'; break } }
+    }
+    if(q && !e.name.toLowerCase().includes(q.toLowerCase())) eligible=false
+    const prefer = new Set(e.preferWith||[])
+    let preferScore = 0; groupIds.forEach(id=>{ if(prefer.has(id)) preferScore++ })
+    return { e, eligible, reason, preferScore }
+  }).filter(r=>r.eligible).sort((a,b)=>{
+    const p = prefFrom(shiftKey,start)
+    const ap = !!(p && (a.e.prefs||[]).includes(p))
+    const bp = !!(p && (b.e.prefs||[]).includes(p))
     if(ap!==bp) return ap?-1:1
+    if(a.preferScore!==b.preferScore) return b.preferScore - a.preferScore
     if(role!=='Standby'){
-      const sa = a.e.skills[role]??0, sb = b.e.skills[role]??0
+      const sa=a.e.skills[role]??0, sb=b.e.skills[role]??0
       if(sa!==sb) return sb-sa
     }
     return a.e.wage - b.e.wage
   })
+
   return (
-    <div className="modal" onClick={onClose}>
-      <div className="box" onClick={e=>e.stopPropagation()}>
-        <div className="hd">
-          <b>Kies medewerker — {dayKey.toUpperCase()} · {shiftKey==='standby'?'Standby':shiftKey} · {role} · {time}</b>
-          <button className="btn" onClick={onClose}>Sluit</button>
-        </div>
-        <div className="bd grid" style={{gap:8}}>
-          <input placeholder="Zoek op naam" value={q} onChange={e=>setQ(e.target.value)} />
-          {candidates.length===0 && <div className="k">Geen kandidaten</div>}
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e=>e.stopPropagation()}>
+        <div className="px-4 py-2 border-b flex items-center justify-between"><b>Kies medewerker — {dayKey.toUpperCase()} · {shiftKey==='standby'?'Standby':shiftKey} · {role} · {start}</b><button className="px-2 py-1 rounded border" onClick={onClose}>Sluit</button></div>
+        <div className="p-4 space-y-2">
+          <input className="w-full px-3 py-2 rounded border" placeholder="Zoek op naam" value={q} onChange={e=>setQ(e.target.value)} />
+          {candidates.length===0 && <div className="text-sm text-gray-500">Geen kandidaten</div>}
           {candidates.map(({e})=>{
             const isDuur = e.wage>=p75
             return (
-              <div key={e.id} className="row" style={{justifyContent:'space-between'}}>
-                <div className="grid" style={{gap:4}}>
-                  <b>{e.name}</b>
-                  <div className="small">€{e.wage.toFixed(2)}/u {isDuur && <span className="tag">Duur</span>}</div>
+              <div key={e.id} className="flex items-center justify-between border rounded-lg p-2">
+                <div>
+                  <div className="font-medium">{e.name}</div>
+                  <div className="text-xs text-gray-500">€{e.wage.toFixed(2)}/u {isDuur && <span className="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-600">Duur</span>}</div>
                 </div>
-                <button className="btn" onClick={()=>{ addAssignment(dayKey,shiftKey,role,time,e.id); onClose(); }}>Kies</button>
+                <button className="text-[11px] px-2 py-1 rounded-md border" onClick={()=>onChoose(e.id)}>Kies</button>
               </div>
             )
           })}
@@ -420,128 +847,163 @@ function AssignModal({ctx, onClose, employees, assignments, addAssignment, p75})
   )
 }
 
-function TimePicker({current, onSelect, onClose}){
-  const items=[]; for(let m=9*60;m<=25*60-30;m+=30) items.push(minToTime(m))
-  return (
-    <div className="modal" onClick={onClose}>
-      <div className="box" onClick={e=>e.stopPropagation()}>
-        <div className="hd"><b>Kies tijd</b><button className="btn" onClick={onClose}>Sluit</button></div>
-        <div className="bd" style={{maxHeight:380, overflow:'auto'}}>
-          <div className="grid grid-3">
-            {items.map(t=>(
-              <button key={t} className="btn" onClick={()=>onSelect(t)}>{t}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AddServiceModal({ctx,onClose,onAdd}){
-  const {dayKey,shiftKey}=ctx
-  const [role,setRole]=useState(shiftKey==='standby'?'Standby':'FOH')
-  const [time,setTime]=useState(shiftKey==='standby'?'13:00':'17:00')
-  const [showPicker,setShowPicker]=useState(false)
-  return (
-    <div className="modal" onClick={onClose}>
-      <div className="box" onClick={e=>e.stopPropagation()}>
-        <div className="hd"><b>Nieuwe dienst — {shiftKey==='standby'?'Standby (dag)':shiftKey}</b><button className="btn" onClick={onClose}>Sluit</button></div>
-        <div className="bd grid" style={{gap:8}}>
-          {shiftKey!=='standby' && (
-            <label className="grid" style={{gap:6}}>
-              <span className="small">Rol</span>
-              <select value={role} onChange={e=>setRole(e.target.value)}>
-                {roles.map(r=><option key={r} value={r}>{r}</option>)}
-              </select>
-            </label>
-          )}
-          <label className="grid" style={{gap:6}}>
-            <span className="small">Tijd</span>
-            <div className="row">
-              <input value={time} onChange={e=>setTime(e.target.value)} style={{width:100}} />
-              <button className="btn" onClick={()=>setShowPicker(true)}>Kies</button>
-            </div>
-          </label>
-          <div className="row" style={{justifyContent:'flex-end'}}>
-            <button className="btn" onClick={onClose}>Annuleer</button>
-            <button className="btn pri" onClick={()=>{ onAdd({role,time}); }}>Toevoegen</button>
-          </div>
-        </div>
-      </div>
-      {showPicker && <TimePicker current={time} onSelect={(t)=>{ setTime(t); setShowPicker(false) }} onClose={()=>setShowPicker(false)} />}
-    </div>
-  )
-}
-
-function NewEmployee({onAdd}){
-  const [name,setName]=useState('')
-  const [wage,setWage]=useState(15)
-  const [prefs,setPrefs]=useState([])
-  const [skills,setSkills]=useState({FOH:3,Host:3,Bar:3,Runner:3,Allround:3})
-  const [canOpen,setCanOpen]=useState(false)
-  const [canClose,setCanClose]=useState(false)
-  const [allowedStandby,setAllowedStandby]=useState(true)
+function EditEmployeeModal({ employee, employees, onClose, onSave }){
+  const [name,setName] = useState(employee.name)
+  const [wage,setWage] = useState(employee.wage)
+  const [prefs,setPrefs] = useState(employee.prefs||[])
+  const [skills,setSkills] = useState({...employee.skills})
+  const [canOpen,setCanOpen] = useState(!!employee.canOpen)
+  const [canClose,setCanClose] = useState(!!employee.canClose)
+  const [allowedStandby,setAllowedStandby] = useState(!!employee.allowedStandby)
+  const [isMentor,setIsMentor]=useState(!!employee.isMentor)
+  const [isRookie,setIsRookie]=useState(!!employee.isRookie)
+  const [preferWith,setPreferWith]=useState(employee.preferWith||[])
+  const [avoidWith,setAvoidWith]=useState(employee.avoidWith||[])
   const togglePref=(v)=> setPrefs(prev=> prev.includes(v)? prev.filter(x=>x!==v) : [...prev,v])
-  return (
-    <div className="grid" style={{gap:8}}>
-      <label className="grid" style={{gap:6}}><span className="small">Naam</span><input value={name} onChange={e=>setName(e.target.value)} /></label>
-      <label className="grid" style={{gap:6}}><span className="small">Uurloon (€)</span><input type="number" value={wage} onChange={e=>setWage(parseFloat(e.target.value||'0'))} /></label>
-      <div className="row small">
-        {['open','tussen','sluit'].map(p=>(
-          <label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={()=>togglePref(p)} /> {p}</label>
-        ))}
-        <label><input type="checkbox" checked={prefs.length===0} onChange={()=>setPrefs([])} /> geen voorkeur</label>
-      </div>
-      <div className="row small">
-        <label><input type="checkbox" checked={canOpen} onChange={e=>setCanOpen(e.target.checked)} /> kan openen</label>
-        <label><input type="checkbox" checked={canClose} onChange={e=>setCanClose(e.target.checked)} /> kan sluiten</label>
-        <label><input type="checkbox" checked={allowedStandby} onChange={e=>setAllowedStandby(e.target.checked)} /> mag standby</label>
-      </div>
-      <button className="btn pri" onClick={()=>{ if(!name) return; const id='e'+Math.random().toString(36).slice(2,7); onAdd({id,name,wage,skills,prefs,canOpen,canClose,allowedStandby}); setName(''); setPrefs([]); }}>Toevoegen</button>
-    </div>
-  )
-}
+  const toggleId=(arrSetter, arr, id)=> arrSetter(arr.includes(id)? arr.filter(x=>x!==id) : [...arr,id])
 
-function EditEmployeeModal({emp,onClose,onSave}){
-  const [name,setName]=useState(emp.name)
-  const [wage,setWage]=useState(emp.wage)
-  const [prefs,setPrefs]=useState(emp.prefs||[])
-  const [skills,setSkills]=useState({...emp.skills})
-  const [canOpen,setCanOpen]=useState(!!emp.canOpen)
-  const [canClose,setCanClose]=useState(!!emp.canClose)
-  const [allowedStandby,setAllowedStandby]=useState(!!emp.allowedStandby)
-  const togglePref=(v)=> setPrefs(prev=> prev.includes(v)? prev.filter(x=>x!==v) : [...prev,v])
   return (
-    <div className="modal" onClick={onClose}>
-      <div className="box" onClick={e=>e.stopPropagation()}>
-        <div className="hd"><b>Bewerk medewerker</b><button className="btn" onClick={onClose}>Sluit</button></div>
-        <div className="bd grid" style={{gap:10}}>
-          <label className="grid" style={{gap:6}}><span className="small">Naam</span><input value={name} onChange={e=>setName(e.target.value)} /></label>
-          <label className="grid" style={{gap:6}}><span className="small">Uurloon (€)</span><input type="number" value={wage} onChange={e=>setWage(parseFloat(e.target.value||'0'))} /></label>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e=>e.stopPropagation()}>
+        <div className="px-4 py-2 border-b flex items-center justify-between"><b>Bewerk medewerker</b><button className="px-2 py-1 rounded border" onClick={onClose}>Sluit</button></div>
+        <div className="p-4 grid gap-3">
+          <label className="grid gap-1"><span className="text-sm">Naam</span><input className="px-3 py-2 rounded border" value={name} onChange={e=>setName(e.target.value)} /></label>
+          <label className="grid gap-1"><span className="text-sm">Uurloon (€)</span><input className="px-3 py-2 rounded border" type="number" value={wage} onChange={e=>setWage(parseFloat(e.target.value||'0'))} /></label>
           <div>
-            <div><b>Voorkeursdiensten</b></div>
-            <div className="row small" style={{marginTop:6}}>
-              {['open','tussen','sluit'].map(p=>(
-                <label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={()=>togglePref(p)} /> {p}</label>
-              ))}
+            <div className="font-medium mb-1">Voorkeursdiensten</div>
+            <div className="flex items-center gap-3 text-sm">
+              {['open','tussen','sluit'].map(p=>(<label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={()=>togglePref(p)} /> {p}</label>))}
               <label><input type="checkbox" checked={prefs.length===0} onChange={()=>setPrefs([])} /> geen voorkeur</label>
             </div>
           </div>
           <div>
-            <div><b>Competenties</b></div>
-            <div className="row small" style={{marginTop:6}}>
+            <div className="font-medium mb-1">Competenties</div>
+            <div className="flex items-center gap-3 text-sm">
               <label><input type="checkbox" checked={canOpen} onChange={e=>setCanOpen(e.target.checked)} /> kan openen</label>
               <label><input type="checkbox" checked={canClose} onChange={e=>setCanClose(e.target.checked)} /> kan sluiten</label>
               <label><input type="checkbox" checked={allowedStandby} onChange={e=>setAllowedStandby(e.target.checked)} /> mag standby</label>
             </div>
           </div>
-          <div className="row" style={{justifyContent:'flex-end'}}>
-            <button className="btn" onClick={onClose}>Annuleer</button>
-            <button className="btn pri" onClick={()=>onSave({...emp,name,wage,prefs,skills,canOpen,canClose,allowedStandby})}>Opslaan</button>
+          <div>
+            <div className="font-medium mb-1">Koppelregels</div>
+            <div className="flex items-center gap-3 text-sm">
+              <label><input type="checkbox" checked={isMentor} onChange={e=>setIsMentor(e.target.checked)} /> mentor</label>
+              <label><input type="checkbox" checked={isRookie} onChange={e=>setIsRookie(e.target.checked)} /> nieuweling</label>
+            </div>
+            <div className="grid" style={{gap:6, marginTop:6}}>
+              <div className="text-xs">Juist wel samen:</div>
+              <div className="flex flex-wrap gap-3 text-sm">
+                {employees.filter(x=>x.id!==employee.id).map(x=>(
+                  <label key={x.id}><input type="checkbox" checked={(preferWith||[]).includes(x.id)} onChange={()=>toggleId(setPreferWith, preferWith||[], x.id)} /> {x.name}</label>
+                ))}
+              </div>
+              <div className="text-xs">Liever niet samen:</div>
+              <div className="flex flex-wrap gap-3 text-sm">
+                {employees.filter(x=>x.id!==employee.id).map(x=>(
+                  <label key={x.id}><input type="checkbox" checked={(avoidWith||[]).includes(x.id)} onChange={()=>toggleId(setAvoidWith, avoidWith||[], x.id)} /> {x.name}</label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button className="px-3 py-1.5 rounded-lg border" onClick={onClose}>Annuleer</button>
+            <button className="px-3 py-1.5 rounded-lg border" onClick={()=>onSave({ ...employee, name, wage, prefs, skills, canOpen, canClose, allowedStandby, isMentor, isRookie, preferWith, avoidWith })}>Opslaan</button>
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function NewEmployeeForm({ onAdd }){
+  const [name,setName] = useState('')
+  const [wage,setWage] = useState(15)
+  const [prefs,setPrefs] = useState([])
+  const [skills,setSkills] = useState({ FOH:3, Host:3, Bar:3, Runner:3, Allround:3 })
+  const [canOpen,setCanOpen] = useState(false)
+  const [canClose,setCanClose] = useState(false)
+  const [allowedStandby,setAllowedStandby] = useState(true)
+  const togglePref=(v)=> setPrefs(prev=> prev.includes(v)? prev.filter(x=>x!==v) : [...prev,v])
+
+  return (
+    <div className="grid gap-2">
+      <label className="grid gap-1"><span className="text-sm">Naam</span><input className="px-3 py-2 rounded border" value={name} onChange={e=>setName(e.target.value)} /></label>
+      <label className="grid gap-1"><span className="text-sm">Uurloon (€)</span><input className="px-3 py-2 rounded border" type="number" value={wage} onChange={e=>setWage(parseFloat(e.target.value||'0'))} /></label>
+      <div className="flex items-center gap-3 text-sm">
+        {['open','tussen','sluit'].map(p=>(<label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={()=>togglePref(p)} /> {p}</label>))}
+        <label><input type="checkbox" checked={prefs.length===0} onChange={()=>setPrefs([])} /> geen voorkeur</label>
+      </div>
+      <div className="flex items-center gap-3 text-sm">
+        <label><input type="checkbox" checked={canOpen} onChange={e=>setCanOpen(e.target.checked)} /> kan openen</label>
+        <label><input type="checkbox" checked={canClose} onChange={e=>setCanClose(e.target.checked)} /> kan sluiten</label>
+        <label><input type="checkbox" checked={allowedStandby} onChange={e=>setAllowedStandby(e.target.checked)} /> mag standby</label>
+      </div>
+      <button className="px-3 py-1.5 rounded-lg border" onClick={()=>{
+        if(!name) return
+        const id='e'+Math.random().toString(36).slice(2,7)
+        onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby })
+        setName(''); setPrefs([]); setCanOpen(false); setCanClose(false); setAllowedStandby(true)
+      }}>Toevoegen</button>
+    </div>
+  )
+}
+
+function AvailabilityPicker({ value, onChange }){
+  const type = value?.type || 'all'
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <select className="px-2 py-1 rounded border" value={type} onChange={e=>onChange(e.target.value==='all'? {type:'all'} : e.target.value==='none'? {type:'none'} : {type:'range', from:'10:00', to:'22:00'})}>
+        <option value="all">Hele dag</option>
+        <option value="none">Niet</option>
+        <option value="range">Tijdvak</option>
+      </select>
+      {type==='range' && (
+        <>
+          <input className="px-2 py-1 rounded border w-24" value={value?.from||'10:00'} onChange={e=>onChange({ ...(value||{type:'range'}), type:'range', from:e.target.value })} />
+          <span>–</span>
+          <input className="px-2 py-1 rounded border w-24" value={value?.to||'22:00'} onChange={e=>onChange({ ...(value||{type:'range'}), type:'range', to:e.target.value })} />
+        </>
+      )}
+    </div>
+  )
+}
+
+function NeedsEditor({ needs, onChange }){
+  return (
+    <div className="grid gap-2 text-sm">
+      {Object.entries(needs).map(([dayKey, shifts])=> (
+        <div key={dayKey} className="border rounded-xl">
+          <div className="px-3 py-2 bg-gray-50 font-medium">{dayKey.toUpperCase()}</div>
+          <div className="p-2 grid md:grid-cols-2 gap-2">
+            {Object.entries(shifts).map(([shiftKey, entries])=> (
+              <div key={shiftKey} className="border rounded-lg p-2">
+                <div className="font-medium mb-1 capitalize">{shiftKey}</div>
+                {entries.map((e,idx)=>(
+                  <div key={idx} className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 rounded bg-gray-100">{e.role}</span>
+                    <span>{e.count}×</span>
+                    <div className="flex items-center gap-1">{e.starts.map((s,i)=>(<span key={i} className="px-2 py-0.5 rounded border">{s}</span>))}</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function currentWeekKey(){
+  const d = new Date()
+  const iso = isoWeek(d)
+  return `${iso.year}-W${pad2(iso.week)}`
+}
+function isoWeek(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1))
+  const weekNo = Math.ceil((((d - yearStart)/86400000)+1)/7)
+  return { year:d.getUTCFullYear(), week:weekNo }
 }
