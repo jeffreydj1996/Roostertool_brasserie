@@ -287,7 +287,17 @@ function addAssignment(dayKey, shiftKey, role, start, employeeId){
       return { ...prev, [weekKey]: nextWeek }
     })
   }
-
+  
+function setAvailabilityFor(employeeId, dayKey, next) {
+  setAvailabilityByWeek(prev => {
+    const wk = { ...(prev[weekKey] || {}) };
+    const emp = { ...(wk[employeeId] || {}) };
+    emp[dayKey] = next; // {type:'all'|'none'|'range', from?, to?}
+    wk[employeeId] = emp;
+    return { ...prev, [weekKey]: wk };
+  });
+}
+  
   function candidateSort(role, shiftKey, start) {
     return (a, b) => {
       const p = prefFrom(shiftKey, start)
@@ -531,46 +541,52 @@ function buildAutofillAssignments() {
       return { ...prev, [weekKey]: wk }
     })
   }
-  function addStart(dayKey, shiftKey, entryIndex, newStart) {
-    setNeedsByWeek(prev => {
-      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
-      const list = (wk[dayKey]?.[shiftKey] || []).slice()
-      const entry = { ...list[entryIndex] }
-      if (!entry) return prev
-      entry.starts = [...new Set([...(entry.starts || []), newStart])]
+function addStart(dayKey, shiftKey, entryIndex, newStart) {
+  setNeedsByWeek(prev => {
+    const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+    const list = (wk[dayKey]?.[shiftKey] || []).slice()
+    const entry = { ...list[entryIndex] }
+    if (!entry) return prev
+    entry.starts = [...new Set([...(entry.starts || []), newStart])]
+    if (entry.starts.length > 1) entry.count = entry.starts.length
+    list[entryIndex] = entry
+    wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+    return { ...prev, [weekKey]: wk }
+  })
+}
+
+function removeStart(dayKey, shiftKey, entryIndex, start) {
+  setNeedsByWeek(prev => {
+    const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+    const list = (wk[dayKey]?.[shiftKey] || []).slice()
+    const entry = { ...list[entryIndex] }
+    if (!entry) return prev
+
+    // verwijder start en bijbehorende assignments
+    entry.starts = (entry.starts || []).filter(s => s !== start)
+    setAssignmentsByWeek(prevA => {
+      const wkA = { ...(prevA[weekKey] || {}) }
+      delete wkA[slotKey(dayKey, shiftKey, entry.role, start)]
+      return { ...prevA, [weekKey]: wkA }
+    })
+
+    if (entry.starts.length === 0) {
+      list.splice(entryIndex, 1)
+    } else {
       if (entry.starts.length > 1) entry.count = entry.starts.length
       list[entryIndex] = entry
-      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
-      return { ...prev, [weekKey]: wk }
-    })
-  }
-  function removeStart(dayKey, shiftKey, entryIndex, start) {
-    setNeedsByWeek(prev => {
-      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
-      const list = (wk[dayKey]?.[shiftKey] || []).slice()
-      const entry = { ...list[entryIndex] }
-      if (!entry) return prev
-      entry.starts = (entry.starts || []).filter(s => s !== start)
-      setAssignmentsByWeek(prevA => {
-        const wkA = { ...(prevA[weekKey] || {}) }
-        delete wkA[slotKey(dayKey, shiftKey, entry.role, start)]
-        return { ...prevA, [weekKey]: wkA }
-      })
-      if (entry.starts.length === 0) {
-        list.splice(entryIndex, 1)
-      } else {
-        if (entry.starts.length > 1) entry.count = entry.starts.length
-        list[entryIndex] = entry
-      }
-      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
-      return { ...prev, [weekKey]: wk }
-    })
-  }
+    }
+    wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+    return { ...prev, [weekKey]: wk }
+  })
+}
+
 function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
   setNeedsByWeek(prev => {
     const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
     const list = (wk[dayKey]?.[shiftKey] || []).slice()
     const entry = { ...list[entryIndex] }
+    if (!entry) return prev
     entry.starts = entry.starts.map(s => (s === oldStart ? newStart : s))
     entry.starts = [...new Set(entry.starts)]
     if (entry.starts.length > 1) entry.count = entry.starts.length
@@ -578,6 +594,7 @@ function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
     wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
     return { ...prev, [weekKey]: wk }
   })
+
   setAssignmentsByWeek(prev => {
     const wk = { ...(prev[weekKey] || {}) }
     const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
@@ -714,7 +731,7 @@ function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
           </div>
         )}
 
-        {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
+        {tab === 'beschikbaarheid' && (  <AvailabilityScreen    employees={employees}    days={days}    availabilityByWeek={availabilityByWeek}    weekKey={weekKey}   setAvailabilityFor={setAvailabilityFor} />)}
         {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
         {tab === 'instellingen' && (<Settings showRejectedCandidates={showRejectedCandidates}  setShowRejectedCandidates={setShowRejectedCandidates} employees={employees} assignments={assignments}
     empWeekHours={empWeekHours} />)}
@@ -1549,6 +1566,93 @@ function Employees({ employees, setEmployees, p75, setEditEmp }) {
   );
 }
 
+function AvailabilityPicker({ value, onChange }) {
+  const type = value?.type || 'all';
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+      <select
+        value={type}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === 'all') onChange({ type: 'all' });
+          else if (v === 'none') onChange({ type: 'none' });
+          else onChange({ type: 'range', from: value?.from || '10:00', to: value?.to || '22:00' });
+        }}
+        style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
+      >
+        <option value="all">Hele dag</option>
+        <option value="none">Niet</option>
+        <option value="range">Tijdvak</option>
+      </select>
+
+      {type === 'range' && (
+        <>
+          <input
+            style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
+            value={value?.from || '10:00'}
+            onChange={(e) => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })}
+          />
+          <span>–</span>
+          <input
+            style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
+            value={value?.to || '22:00'}
+            onChange={(e) => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function AvailabilityScreen({ employees, days, availabilityByWeek, weekKey, setAvailabilityFor }) {
+  return (
+    <div className="max-w-7xl mx-auto p-4 space-y-3">
+      <div className="rounded-2xl border bg-white/80 p-3">
+        <div className="text-sm text-gray-600">
+          Tik per dag je beschikbaarheid: <b>Hele dag</b>, <b>Niet</b> of <b>Tijdvak</b>.
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-separate [border-spacing:0]">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left text-xs font-semibold text-gray-600 px-3 py-2 border-b">Medewerker</th>
+                {days.map(d => (
+                  <th key={d.key} className="text-left text-xs font-semibold text-gray-600 px-3 py-2 border-b">
+                    {d.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map(e => (
+                <tr key={e.id} className="odd:bg-white even:bg-gray-50">
+                  <td className="px-3 py-2 text-sm font-medium text-gray-800 border-b">{e.name}</td>
+                  {days.map(d => {
+                    const value = (availabilityByWeek[weekKey]?.[e.id]?.[d.key]) || { type: 'all' };
+                    return (
+                      <td key={d.key} className="px-3 py-2 border-b">
+                        <AvailabilityPicker
+                          value={value}
+                          onChange={(next) => setAvailabilityFor(e.id, d.key, next)}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function NewEmployeeForm({ onAdd }) {
   const [name, setName] = React.useState('');
   const [wage, setWage] = React.useState(15);
@@ -1672,15 +1776,16 @@ function NewEmployeeForm({ onAdd }) {
 
 function AvailabilityPicker({ value, onChange }) {
   const type = value?.type || 'all';
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
       <select
         value={type}
-        onChange={e => {
+        onChange={(e) => {
           const v = e.target.value;
           if (v === 'all') onChange({ type: 'all' });
           else if (v === 'none') onChange({ type: 'none' });
-          else onChange({ type: 'range', from: '10:00', to: '22:00' });
+          else onChange({ type: 'range', from: value?.from || '10:00', to: value?.to || '22:00' });
         }}
         style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
       >
@@ -1688,18 +1793,19 @@ function AvailabilityPicker({ value, onChange }) {
         <option value="none">Niet</option>
         <option value="range">Tijdvak</option>
       </select>
+
       {type === 'range' && (
         <>
           <input
             style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
             value={value?.from || '10:00'}
-            onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })}
+            onChange={(e) => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })}
           />
           <span>–</span>
           <input
             style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
             value={value?.to || '22:00'}
-            onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })}
+            onChange={(e) => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })}
           />
         </>
       )}
@@ -1870,6 +1976,7 @@ function hasOpenerInShift(assignments, dayKey, shiftKey, employees){
   }
   return false;
 }
+
 function hasCloserInShift(assignments, dayKey, shiftKey, employees){
   for(const k of Object.keys(assignments)){
     const [d,s,role] = k.split(':');
@@ -1881,6 +1988,7 @@ function hasCloserInShift(assignments, dayKey, shiftKey, employees){
   }
   return false;
 }
+
 const dayOrder = ["ma","di","wo","do","vr","za","zo"];
 const dayIndex = (k)=> dayOrder.indexOf(k);
 const prevDayKey = (k)=> dayOrder[(dayIndex(k)-1+7)%7];
@@ -1899,114 +2007,128 @@ function listNonStandbyForEmp(state, empId){
   });
 }
 function empWeekHours(state, empId){
-  return listNonStandbyForEmp(state, empId).length * 7;
+  let total = 0;
+  for(const k of Object.keys(state)){
+    const list = state[k] || [];
+    if(list.some(a=>a.employeeId===empId)){
+      total += 7; // elke dienst 7 uur
+    }
+  }
+  return total;
 }
+
 function empWeekShifts(state, empId){
-  return listNonStandbyForEmp(state, empId).length;
+  let total = 0;
+  for(const k of Object.keys(state)){
+    const list = state[k] || [];
+    if(list.some(a=>a.employeeId===empId)) total += 1;
+  }
+  return total;
 }
+
 function empDaysSet(state, empId){
   const set = new Set();
-  listNonStandbyForEmp(state, empId).forEach(k=>{
-    const [d] = k.split(':'); set.add(d);
+  Object.keys(state).forEach(k=>{
+    const [d] = k.split(':');
+    if((state[k]||[]).some(a=>a.employeeId===empId)) set.add(d);
   });
   return set;
 }
-function longestRunWith(setDays, addDay){
-  const s = new Set(setDays);
-  if(addDay) s.add(addDay);
-  let best = 0, cur = 0;
+
+function earliestStartOnDay(state, dayKey){
+  let min = Infinity;
+  for(const k of Object.keys(state)){
+    const [d,s,role,start] = k.split(':');
+    if(d!==dayKey || role==='Standby') continue;
+    min = Math.min(min, timeToMin(start));
+  }
+  return (min===Infinity)? null : min;
+}
+function latestEndOnDay(state, dayKey){
+  let max = -Infinity;
+  for(const k of Object.keys(state)){
+    const [d,s,role,start] = k.split(':');
+    if(d!==dayKey || role==='Standby') continue;
+    const end = shiftEndTime(s, start); // in minuten
+    max = Math.max(max, end);
+  }
+  return (max===-Infinity)? null : max;
+}
+
+function shiftEndTime(shiftKey, start){ 
+  const startM = timeToMin(start);
+  const dur = 7*60;
+  return startM + dur;
+}
+
+const dayOrder = ["ma","di","wo","do","vr","za","zo"];
+function prevDayKey(d){ const i=dayOrder.indexOf(d); return dayOrder[(i+6)%7]; }
+function nextDayKey(d){ const i=dayOrder.indexOf(d); return dayOrder[(i+1)%7]; }
+
+function longestRunWith(daysSet){
+  let best=0, cur=0;
   for(let i=0;i<7;i++){
-    const key = dayOrder[i];
-    if(s.has(key)){ cur++; best = Math.max(best, cur); } else { cur=0; }
+    const d = dayOrder[i];
+    if(daysSet.has(d)){ cur+=1; best=Math.max(best, cur); }
+    else cur=0;
+  }
+  // wrap-around check
+  if(daysSet.has("zo") && daysSet.has("ma")){
+    let left=0, i=6; while(i>=0 && daysSet.has(dayOrder[i])){ left++; i--; }
+    let right=0, j=0; while(j<7 && daysSet.has(dayOrder[j])){ right++; j++; }
+    best = Math.max(best, left+right);
   }
   return best;
 }
-function earliestStartOnDay(state, empId, dayKey){
-  let best = null;
-  Object.keys(state).forEach(k=>{
-    const [d,,role,start] = k.split(':');
-    if(d!==dayKey || role==='Standby') return;
-    (state[k]||[]).forEach(a=>{
-      if(a.employeeId!==empId) return;
-      if(best===null || timeToMin(start) < timeToMin(best)) best = start;
-    });
-  });
-  return best;
-}
-function latestEndOnDay(state, empId, dayKey){
-  let best = null;
-  Object.keys(state).forEach(k=>{
-    const [d,,role,start] = k.split(':');
-    if(d!==dayKey || role==='Standby') return;
-    (state[k]||[]).forEach(a=>{
-      if(a.employeeId!==empId) return;
-      const end = shiftEndTime(start);
-      if(best===null || timeToMin(end) > timeToMin(best)) best = end;
-    });
-  });
-  return best;
-}
+
 function closeOpenCount(state, empId){
-  let count = 0;
+  let cnt=0;
   for(let i=0;i<7;i++){
-    const d = dayOrder[i], n = dayOrder[(i+1)%7];
-    const hadClose = Object.keys(state).some(k=>{
-      const [dd,,role,start] = k.split(':');
-      if(dd!==d || role==='Standby') return false;
-      return (state[k]||[]).some(a=>a.employeeId===empId) && requiresClose(start);
-    });
-    const hasOpenNext = Object.keys(state).some(k=>{
-      const [dd,,role,start] = k.split(':');
-      if(dd!==n || role==='Standby') return false;
-      return (state[k]||[]).some(a=>a.employeeId===empId) && requiresOpen(start);
-    });
-    if(hadClose && hasOpenNext) count++;
+    const d = dayOrder[i], n = nextDayKey(d);
+    const last = latestEndOnDay(pickDay(state,d), d);
+    const first = earliestStartOnDay(pickDay(state,n), n);
+    if(last==null || first==null) continue;
+    // telt als 'sluit→open' als er < 11 uur rust is
+    if((first + 24*60 - last) % (24*60) < (11*60)) cnt++;
   }
-  return count;
+  return cnt;
+
+  function pickDay(stateAll, dayOnly){
+    const sub = {};
+    for(const k of Object.keys(stateAll)){
+      const [d] = k.split(':');
+      if(d===dayOnly) sub[k] = stateAll[k];
+    }
+    return sub;
+  }
 }
+
 function wouldViolateContractOnAdd(emp, dayKey, shiftKey, role, start, state){
-  const tmp = { ...state };
+  const tmp = JSON.parse(JSON.stringify(state || {}));
   const key = `${dayKey}:${shiftKey}:${role}:${start}`;
   const cur = tmp[key] || [];
-  if(cur.some(a=>a.employeeId===emp.id)) return { ok:false, reason:"al ingepland in dit slot" };
   tmp[key] = [...cur, { employeeId: emp.id, standby: role==='Standby' }];
 
-  // Standby telt niet voor contractregels
-  if(role==='Standby') return { ok:true };
-
   const hours = empWeekHours(tmp, emp.id);
-  if(emp.maxHoursWeek>0 && hours > emp.maxHoursWeek) return { ok:false, reason:"max uren/week" };
-
   const shifts = empWeekShifts(tmp, emp.id);
-  if(emp.maxShiftsWeek>0 && shifts > emp.maxShiftsWeek) return { ok:false, reason:"max diensten/week" };
-
-  const daysSet = empDaysSet(tmp, emp.id);
-  const run = longestRunWith(daysSet);
-  if(emp.maxConsecutiveDays>0 && run > emp.maxConsecutiveDays) return { ok:false, reason:"max opeenvolgende dagen" };
-
-  // Rust en sluit→open
-  const prev = prevDayKey(dayKey), next = nextDayKey(dayKey);
-  const endNew = shiftEndTime(start);
-
-  const prevEnd = latestEndOnDay(tmp, emp.id, prev);
-  if(prevEnd){
-    // rust tussen prevEnd (vorige dag) en start (nieuwe dag)
-    // prevEnd en start zijn beide "kloktijden"; cross-day rust = (24h - prevEnd) + start
-    const restMin = ((24*60 - timeToMin(prevEnd)) + timeToMin(start)) % (24*60);
-    if(emp.minRestHours>0 && restMin < emp.minRestHours*60) return { ok:false, reason:"min rust" };
-  }
-  const nextStart = earliestStartOnDay(tmp, emp.id, next);
-  if(nextStart){
-    const restMin = ((24*60 - timeToMin(endNew)) + timeToMin(nextStart)) % (24*60);
-    if(emp.minRestHours>0 && restMin < emp.minRestHours*60) return { ok:false, reason:"min rust" };
-  }
-
-  // sluit→open extra check
+  const days = empDaysSet(tmp, emp.id);
+  const run = longestRunWith(days);
   const co = closeOpenCount(tmp, emp.id);
-  if(emp.maxCloseOpenPerWeek>=0 && co > emp.maxCloseOpenPerWeek) return { ok:false, reason:"max sluit→open" };
 
+  if(emp.contractType==='fixed_hours'){
+    if(emp.maxHoursWeek != null && hours > emp.maxHoursWeek) return { ok:false, reason:"max uren/week" };
+    if(emp.maxShiftsWeek != null && shifts > emp.maxShiftsWeek) return { ok:false, reason:"max diensten/week" };
+  }else if(emp.contractType==='zero_hours'){
+    if(emp.maxShiftsWeek != null && shifts > emp.maxShiftsWeek) return { ok:false, reason:"max diensten/week" };
+  }
+
+  if(emp.maxConsecutiveDays != null && run > emp.maxConsecutiveDays) return { ok:false, reason:"max opeenvolgende dagen" };
+  if(emp.maxCloseOpenPerWeek != null && co > emp.maxCloseOpenPerWeek) return { ok:false, reason:"max sluit→open per week" };
+
+  // minHoursWeek is 'grijs' (niet blokkerend), alles boven houdt hard tegen.
   return { ok:true };
 }
+
 // Geeft true als een medewerker een VASTE_UREN contract heeft én onder zijn/haar min-uren zit
 function isUnderMinHoursFixed(nextAssignments, emp) {
   const hours = empWeekHours(nextAssignments, emp.id); // gebruikt je bestaande helper
