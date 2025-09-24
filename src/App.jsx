@@ -82,31 +82,31 @@ export default function App() {
     return startMin < b && a < endMin
   }
 
-  function addAssignment(dayKey, shiftKey, role, start, employeeId) {
-    setAssignmentsByWeek(prev => {
-      const prevWeek = prev[weekKey] || {}
-      // max 1 dienst per dag (incl. Standby)
-      const conflict = Object.keys(prevWeek).some(k => {
-        const [d] = k.split(':')
-        if (d !== dayKey) return false
-        return (prevWeek[k] || []).some(a => a.employeeId === employeeId)
-      })
-      if (conflict) return prev
-      if (!isAvailable(employeeId, dayKey, start)) return prev
-      const emp = employees.find(e => e.id === employeeId); if (!emp) return prev
-      if (role === 'Standby' && !emp.allowedStandby) return prev
-      if (role !== 'Standby') {
-        if ((emp.skills[role] ?? 0) < 3) return prev
-        if (requiresOpen(start) && !emp.canOpen) return prev
-        if (requiresClose(start) && !emp.canClose) return prev
-      }
-      const key = slotKey(dayKey, shiftKey, role, start)
-      const list = prevWeek[key] || []
-      if (list.some(a => a.employeeId === employeeId)) return prev
-      const nextWeek = { ...prevWeek, [key]: [...list, { employeeId, standby: role === 'Standby' }] }
-      return { ...prev, [weekKey]: nextWeek }
-    })
-  }
+function addAssignment(dayKey, shiftKey, role, start, employeeId){
+  setAssignmentsByWeek(prev=>{
+    const prevWeek = prev[weekKey] || {};
+    // max 1 dienst per dag (incl. Standby)
+    const conflict = Object.keys(prevWeek).some(k=>{
+      const [d] = k.split(':');
+      if(d!==dayKey) return false;
+      return (prevWeek[k]||[]).some(a=>a.employeeId===employeeId);
+    });
+    if(conflict) return prev;
+
+    if(!isAvailable(employeeId, dayKey, start)) return prev;
+    const emp = employees.find(e=>e.id===employeeId); if(!emp) return prev;
+    if(role==='Standby' && !emp.allowedStandby) return prev;
+    if(role!=='Standby' && ((emp.skills?.[role]??0) < 3)) return prev;
+
+    const key = `${dayKey}:${shiftKey}:${role}:${start}`;
+    const list = prevWeek[key] || [];
+    if(list.some(a=>a.employeeId===employeeId)) return prev;
+
+    const nextWeek = { ...prevWeek, [key]: [...list, { employeeId, standby: role==='Standby' }] };
+    return { ...prev, [weekKey]: nextWeek };
+  });
+}
+
 
   function removeAssignment(dayKey, shiftKey, role, start, employeeId) {
     setAssignmentsByWeek(prev => {
@@ -142,39 +142,71 @@ function buildAutofillAssignments() {
 
   days.forEach(d => {
     const dayNeeds = needs[d.key] || {};
-    Object.entries(dayNeeds).forEach(([shiftKey, entries]) => {
+
+    // verwerk shifts zó dat 'standby' altijd als laatste komt
+    const shiftKeys = Object.keys(dayNeeds).sort((a,b)=>{
+      if(a==='standby' && b!=='standby') return 1;
+      if(b==='standby' && a!=='standby') return -1;
+      return 0;
+    });
+
+    shiftKeys.forEach(shiftKey => {
+      const entries = dayNeeds[shiftKey] || [];
+
+      // bepaal of deze shift überhaupt opener/closer nodig heeft (op basis van starts)
+      const needsOpenShift  = entries.some(en => (en.starts||[]).some(s => requiresOpen(s)));
+      const needsCloseShift = entries.some(en => (en.starts||[]).some(s => requiresClose(s)));
+
       entries.forEach(entry => {
         const perStartCount = (entry.starts.length > 1) ? 1 : entry.count;
 
         entry.starts.forEach(start => {
           const key = `${d.key}:${shiftKey}:${entry.role}:${start}`;
 
-          // mentor al ergens in deze shift (uit eerder geplaatste starts/rollen)
+          // wat is al gepland in deze shift?
           const mentorInShiftAlready = Object.keys(next).some(k => {
             const [dd, ss, role2] = k.split(':');
             if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
             return (next[k] || []).some(a => getEmp(a.employeeId)?.isMentor);
           });
+          const openerInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.canOpen);
+          });
+          const closerInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.canClose);
+          });
 
+          // kandidaten: geen hard filter op open/close; Standby alleen als toegestaan; skills >=3 voor niet-standby
           const candidates = employees
             .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : ((e.skills?.[entry.role] ?? 0) >= 3))
             .sort((a, b) => {
+              // prefereer opener/closer als shift dat nog mist
+              if (needsOpenShift && !openerInShiftAlready && (a.canOpen !== b.canOpen)) return a.canOpen ? -1 : 1;
+              if (needsCloseShift && !closerInShiftAlready && (a.canClose !== b.canClose)) return a.canClose ? -1 : 1;
+
+              // daarna voorkeurdienst
               const p = prefFrom(shiftKey, start);
               const ap = !!(p && (a.prefs || []).includes(p));
               const bp = !!(p && (b.prefs || []).includes(p));
               if (ap !== bp) return ap ? -1 : 1;
+
+              // dan skill voor de rol (geen Standby)
               if (entry.role !== 'Standby') {
                 const sa = a.skills?.[entry.role] ?? 0, sb = b.skills?.[entry.role] ?? 0;
                 if (sa !== sb) return sb - sa;
               }
+
+              // dan goedkoop eerst
               return a.wage - b.wage;
             });
 
           let placed = [];
           let dureCount = 0;
           const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1;
-          const needOpen = requiresOpen(start);
-          const needClose = requiresClose(start);
 
           for (const c of candidates) {
             if (placed.length >= perStartCount) break;
@@ -183,6 +215,7 @@ function buildAutofillAssignments() {
             const hasSB = byDayStandby[d.key].has(c.id);
 
             if (entry.role === 'Standby') {
+              // Standby mag niet gecombineerd met een andere dienst
               if (hasShift) continue;
               if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
               placed.push({ employeeId: c.id, standby: true });
@@ -190,17 +223,20 @@ function buildAutofillAssignments() {
               continue;
             }
 
+            // niet combineren met andere dienst op dezelfde dag
             if (hasShift || hasSB) continue;
-            if (needOpen && !c.canOpen) continue;
-            if (needClose && !c.canClose) continue;
+
+            // kostenmix zacht (blokkeer extra dure boven limiet)
             if (c.wage >= p75 && dureCount >= limitDure) continue;
+
+            // koppelregels: liever-niet samen vermijden
             if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
 
             placed.push({ employeeId: c.id, standby: false });
             byDay[d.key].add(c.id);
             if (c.wage >= p75) dureCount++;
 
-            // zachte 'preferWith': probeer 1 maatje mee te nemen als er plek is
+            // zachte 'preferWith': probeer maatje mee te nemen als er plek is
             if (placed.length < perStartCount) {
               const preferSet = new Set(c.preferWith || []);
               const prefCand = candidates.find(px =>
@@ -208,8 +244,6 @@ function buildAutofillAssignments() {
                 !byDay[d.key].has(px.id) &&
                 !byDayStandby[d.key].has(px.id) &&
                 !placed.some(p => p.employeeId === px.id) &&
-                (!needOpen || px.canOpen) &&
-                (!needClose || px.canClose) &&
                 (entry.role === 'Standby' ? !!px.allowedStandby : ((px.skills?.[entry.role] ?? 0) >= 3)) &&
                 !hasAvoidWith(px.id, placed.map(x => x.employeeId), employees) &&
                 (preferSet.has(px.id) || (px.preferWith || []).includes(c.id))
@@ -220,29 +254,26 @@ function buildAutofillAssignments() {
                 if (prefCand.wage >= p75 && entry.role !== 'Standby') dureCount++;
               }
             }
-          }
 
-          // Rookie zonder mentor? Alleen proberen mentor toe te voegen als die NOG NIET
-          // ergens in de HELE shift staat (shift-breed), en er nog plek is in dit startslot.
-          if (entry.role !== 'Standby' && placed.length < perStartCount) {
-            const placedIds = placed.map(x => x.employeeId);
-            const hasRookieLocal = placedIds.some(id => getEmp(id)?.isRookie);
-            const hasMentorLocal = placedIds.some(id => getEmp(id)?.isMentor);
-            const mentorShift = mentorInShiftAlready || hasMentorLocal;
-            if (hasRookieLocal && !mentorShift) {
-              const mentor = candidates.find(mx =>
-                mx.isMentor &&
-                !byDay[d.key].has(mx.id) &&
-                !byDayStandby[d.key].has(mx.id) &&
-                !placed.some(p => p.employeeId === mx.id) &&
-                !hasAvoidWith(mx.id, placed.map(x => x.employeeId), employees) &&
-                (!needOpen || mx.canOpen) &&
-                (!needClose || mx.canClose)
-              );
-              if (mentor) {
-                placed.push({ employeeId: mentor.id, standby: false });
-                byDay[d.key].add(mentor.id);
-                if (mentor.wage >= p75) dureCount++;
+            // Rookie zonder mentor? alleen toevoegen als er nog geen mentor shift-breed staat
+            if (entry.role !== 'Standby' && placed.length < perStartCount) {
+              const placedIds = placed.map(x => x.employeeId);
+              const hasRookieLocal = placedIds.some(id => getEmp(id)?.isRookie);
+              const hasMentorLocal = placedIds.some(id => getEmp(id)?.isMentor);
+              const mentorShift = mentorInShiftAlready || hasMentorLocal;
+              if (hasRookieLocal && !mentorShift) {
+                const mentor = candidates.find(mx =>
+                  mx.isMentor &&
+                  !byDay[d.key].has(mx.id) &&
+                  !byDayStandby[d.key].has(mx.id) &&
+                  !placed.some(p => p.employeeId === mx.id) &&
+                  !hasAvoidWith(mx.id, placed.map(x => x.employeeId), employees)
+                );
+                if (mentor) {
+                  placed.push({ employeeId: mentor.id, standby: false });
+                  byDay[d.key].add(mentor.id);
+                  if (mentor.wage >= p75) dureCount++;
+                }
               }
             }
           }
@@ -641,76 +672,75 @@ function ShiftBlock({
   openPicker, addAssignment, removeAssignment, onChangeStart,
   onAddEntry, onRemoveEntry, onAddStart, onRemoveStart, warnings, shiftCost
 }) {
-  const [adding, setAdding] = useState(false)
-  const [newRole, setNewRole] = useState(shiftKey === 'standby' ? 'Standby' : roles[0])
-  const [newCount, setNewCount] = useState(1)
-  const [newStarts, setNewStarts] = useState(["10:00"])
+  const [adding, setAdding] = React.useState(false);
+  const [newRole, setNewRole] = React.useState(shiftKey === 'standby' ? 'Standby' : roles[0]);
+  const [newCount, setNewCount] = React.useState(1);
+  const [newStarts, setNewStarts] = React.useState(["10:00"]);
 
-  useEffect(() => {
-    if (shiftKey === 'standby') { setNewRole('Standby') }
-  }, [shiftKey])
-
-  useEffect(() => {
-    // Zorg dat #start-selects == aantal
-    if (newStarts.length === newCount) return
+  React.useEffect(()=>{ if(shiftKey==='standby') setNewRole('Standby') },[shiftKey]);
+  React.useEffect(()=>{
+    if (newStarts.length === newCount) return;
     if (newStarts.length < newCount) {
-      const hh = halfHours()
-      const extra = Array.from({ length: newCount - newStarts.length }, () => hh[0])
-      setNewStarts(prev => [...prev, ...extra])
+      const hh = halfHours();
+      const extra = Array.from({length: newCount - newStarts.length}, ()=> hh[0]);
+      setNewStarts(prev=>[...prev, ...extra]);
     } else {
-      setNewStarts(prev => prev.slice(0, newCount))
+      setNewStarts(prev=>prev.slice(0,newCount));
     }
-  }, [newCount])
+  },[newCount]);
 
-  const headerTitle = shiftKey === 'standby' ? 'Standby (dag)' : shiftKey
+  const needsOpenShift  = entries.some(en => (en.starts||[]).some(s => requiresOpen(s)));
+  const needsCloseShift = entries.some(en => (en.starts||[]).some(s => requiresClose(s)));
+
+  const headerTitle = shiftKey === 'standby' ? 'Standby (dag)' : shiftKey;
 
   return (
     <div style={{ border: "1px solid #e5e7eb", borderRadius: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f9fafb" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, textTransform: "capitalize" }}>{headerTitle}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#f9fafb" }}>
+        <div style={{ fontSize:14, fontWeight:600, textTransform:"capitalize" }}>{headerTitle}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <ShiftWarningsBadge info={warnings} />
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Kosten: €{shiftCost(dayKey, shiftKey).toFixed(2)}</div>
-          <button style={btnSm()} onClick={() => setAdding(v => !v)}>+ Dienst toevoegen</button>
+          <div style={{ fontSize:12, color:"#6b7280" }}>Kosten: €{shiftCost(dayKey, shiftKey).toFixed(2)}</div>
+          <button style={btnSm()} onClick={()=>setAdding(v=>!v)}>+ Dienst toevoegen</button>
         </div>
       </div>
 
       {adding && (
-        <div style={{ padding: 12, borderBottom: "1px solid #e5e7eb", display: "grid", gap: 8 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 12 }}>Rol</span>
-              <select value={newRole} onChange={e => setNewRole(e.target.value)} disabled={shiftKey === 'standby'} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                {shiftKey === 'standby'
+        <div style={{ padding:12, borderBottom:"1px solid #e5e7eb", display:"grid", gap:8 }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            <label style={{ display:"grid", gap:4 }}>
+              <span style={{ fontSize:12 }}>Rol</span>
+              <select value={newRole} onChange={e=>setNewRole(e.target.value)} disabled={shiftKey==='standby'} style={{ padding:"6px 8px", borderRadius:8, border:"1px solid #e5e7eb" }}>
+                {shiftKey==='standby'
                   ? <option value="Standby">Standby</option>
-                  : roles.concat(['Bar','Runner']).filter((v,i,a)=>a.indexOf(v)===i).map(r => <option key={r} value={r}>{r}</option>)
+                  : roles.concat(['Bar','Runner']).filter((v,i,a)=>a.indexOf(v)===i).map(r=><option key={r} value={r}>{r}</option>)
                 }
               </select>
             </label>
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 12 }}>Aantal</span>
-              <input type="number" min={1} max={10} value={newCount} onChange={e => setNewCount(Math.max(1, Math.min(10, parseInt(e.target.value || '1', 10))))} style={{ width: 80, padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+            <label style={{ display:"grid", gap:4 }}>
+              <span style={{ fontSize:12 }}>Aantal</span>
+              <input type="number" min={1} max={10} value={newCount} onChange={e=>setNewCount(Math.max(1,Math.min(10,parseInt(e.target.value||'1',10))))} style={{ width:80, padding:"6px 8px", borderRadius:8, border:"1px solid #e5e7eb" }} />
             </label>
-            <div style={{ display: "grid", gap: 6, flex: 1 }}>
-              <span style={{ fontSize: 12 }}>Starttijden</span>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {newStarts.map((t, idx) => (
-                  <select key={idx} value={t} onChange={e => setNewStarts(prev => prev.map((v, i) => i === idx ? e.target.value : v))} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                    {halfHours().map(h => <option key={h} value={h}>{h}</option>)}
+            <div style={{ display:"grid", gap:6, flex:1 }}>
+              <span style={{ fontSize:12 }}>Starttijden</span>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {newStarts.map((t,idx)=>(
+                  <select key={idx} value={t} onChange={e=>setNewStarts(prev=>prev.map((v,i)=>i===idx? e.target.value : v))} style={{ padding:"6px 8px", borderRadius:8, border:"1px solid #e5e7eb" }}>
+                    {halfHours().map(h=><option key={h} value={h}>{h}</option>)}
                   </select>
                 ))}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={btnSm()} onClick={() => { onAddEntry(dayKey, shiftKey, { role: newRole, count: newCount, starts: newStarts }); setAdding(false) }}>Opslaan</button>
-              <button style={btnSm()} onClick={() => setAdding(false)}>Annuleer</button>
+            <div style={{ display:"flex", gap:8 }}>
+              <button style={btnSm()} onClick={()=>{ onAddEntry(dayKey, shiftKey, { role:newRole, count:newCount, starts:newStarts }); setAdding(false); }}>Opslaan</button>
+              <button style={btnSm()} onClick={()=>setAdding(false)}>Annuleer</button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 8, padding: 8 }}>
-        {entries.map((entry, idx) => (
+      <div style={{ display:"grid", gap:8, padding:8 }}>
+        {entries.map((entry, idx)=>(
           <Cell
             key={idx}
             dayKey={dayKey}
@@ -727,11 +757,13 @@ function ShiftBlock({
             onAddStart={onAddStart}
             onRemoveStart={onRemoveStart}
             onRemoveEntry={onRemoveEntry}
+            needsOpenShift={needsOpenShift}
+            needsCloseShift={needsCloseShift}
           />
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function RoosterCellHeader({ role, count, onRemoveEntry }) {
@@ -744,101 +776,84 @@ function RoosterCellHeader({ role, count, onRemoveEntry }) {
   )
 }
 
-function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment, onChangeStart, onAddStart, onRemoveStart, onRemoveEntry }) {
-  const role = entry.role
-  const [editKey, setEditKey] = useState(null)
-  const [addingStart, setAddingStart] = useState(false)
-  const [newStart, setNewStart] = useState("10:00")
-  const times = useMemo(() => halfHours(), [])
+function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment, onChangeStart, onAddStart, onRemoveStart, onRemoveEntry, needsOpenShift, needsCloseShift }) {
+  const role = entry.role;
+  const [editKey,setEditKey] = React.useState(null);
+  const [addingStart,setAddingStart] = React.useState(false);
+  const [newStart,setNewStart] = React.useState("10:00");
+  const times = React.useMemo(()=>halfHours(),[]);
 
   return (
-    <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, background: "white" }}>
-      <RoosterCellHeader role={role} count={entry.count} onRemoveEntry={() => onRemoveEntry(dayKey, shiftKey, entryIndex)} />
-      <div style={{ display: "grid", gap: 6 }}>
-        {entry.starts.map((start, i) => {
-          const k = `${dayKey}:${shiftKey}:${role}:${start}`
-          const list = assignments[k] || []
-          const spots = (entry.starts.length > 1) ? 1 : entry.count
-          const filled = list.length
-          const needOpen = requiresOpen(start)
-          const needClose = requiresClose(start)
-          const hasOpener = list.some(a => { const emp = employees.find(e => e.id === a.employeeId); return !!emp?.canOpen })
-          const hasCloser = list.some(a => { const emp = employees.find(e => e.id === a.employeeId); return !!emp?.canClose })
+    <div style={{ border:"1px solid #e5e7eb", borderRadius:12, padding:8, background:"white" }}>
+      <RoosterCellHeader role={role} count={entry.count} onRemoveEntry={()=>onRemoveEntry(dayKey, shiftKey, entryIndex)} />
+      <div style={{ display:"grid", gap:6 }}>
+        {entry.starts.map((start,i)=>{
+          const k = `${dayKey}:${shiftKey}:${role}:${start}`;
+          const list = assignments[k]||[];
+          const spots = (entry.starts.length > 1) ? 1 : entry.count;
+          const filled = list.length;
+
+          const openerAnywhere = hasOpenerInShift(assignments, dayKey, shiftKey, employees);
+          const closerAnywhere = hasCloserInShift(assignments, dayKey, shiftKey, employees);
+
           return (
-            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
-              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+            <div key={i} style={{ border:"1px solid #e5e7eb", borderRadius:10, padding:8 }}>
+              <div style={{ fontSize:11, color:"#6b7280", marginBottom:6, display:"flex", alignItems:"center", gap:8 }}>
                 <span>Start {start} · {filled}/{spots}</span>
-               {needOpen && <span style={pill(hasOpener)}>{hasOpener ? 'Open OK' : 'Open ontbreekt'}</span>}
-{needClose && <span style={pill(hasCloser)}>{hasCloser ? 'Sluit OK' : 'Sluit ontbreekt'}</span>}
-{(() => {
-  const currentIds = list.map(a => a.employeeId);
 
-  // check 'liever niet samen' binnen dit startblok
-  let avoidInGroup = false;
-  for (let i = 0; i < currentIds.length; i++) {
-    for (let j = i + 1; j < currentIds.length; j++) {
-      if (hasAvoidWith(currentIds[i], [currentIds[j]], employees)) { avoidInGroup = true; break; }
-    }
-    if (avoidInGroup) break;
-  }
+                {/* alleen waarschuwingen (geen OK-badges) en shift-breed */}
+                {needsOpenShift  && !openerAnywhere && <span style={pill(false)}>Open-medewerker ontbreekt</span>}
+                {needsCloseShift && !closerAnywhere && <span style={pill(false)}>Sluit-medewerker ontbreekt</span>}
 
-  // rookies hier + geen mentor ergens in HELE shift (alle starts)
-  const hasRookieHere = currentIds.some(id => employees.find(e => e.id === id)?.isRookie);
-  const mentorAnywhereThisShift = hasMentorInShift(assignments, dayKey, shiftKey, employees);
-
-  return (
-    <>
-      {avoidInGroup && <span style={pill(false)}>Conflict: liever niet samen</span>}
-      {hasRookieHere && !mentorAnywhereThisShift && <span style={pill(false)}>Mentor ontbreekt</span>}
-    </>
-  );
-})()}
-                <button style={{ marginLeft: "auto", ...btnSm() }} onClick={() => setEditKey(editKey === k ? null : k)}>🕒 Tijd</button>
-                {editKey === k && (
-                  <select value={start} onChange={(e) => { const ns = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns) }} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                    {times.map(t => (<option key={t} value={t}>{t}</option>))}
+                <button style={{ marginLeft:"auto", ...btnSm() }} onClick={()=>setEditKey(editKey===k? null : k)}>🕒 Tijd</button>
+                {editKey===k && (
+                  <select value={start} onChange={(e)=>{ const ns=e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns); }} style={{ fontSize:12, padding:"4px 8px", borderRadius:8, border:"1px solid #e5e7eb" }}>
+                    {times.map(t=>(<option key={t} value={t}>{t}</option>))}
                   </select>
                 )}
-                <button title="Verwijder start" style={btnSm()} onClick={() => onRemoveStart(dayKey, shiftKey, entryIndex, start)}>🗑</button>
+                <button title="Verwijder start" style={btnSm()} onClick={()=>onRemoveStart(dayKey, shiftKey, entryIndex, start)}>🗑</button>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {list.map((a, idx) => {
-                  const emp = employees.find(e => e.id === a.employeeId)
-                  if (!emp) return null
+
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {list.map((a, idx)=>{
+                  const emp = employees.find(e=>e.id===a.employeeId);
+                  if(!emp) return null;
                   return (
-                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 8, background: "white", border: "1px solid #e5e7eb", boxShadow: "0 1px 1px rgba(0,0,0,0.04)" }}>
-                      <span style={{ fontSize: 11, fontWeight: 600 }}>{emp.name}</span>
-                      {a.standby && <span style={tinyTag("#e5e7eb", "#374151")}>Standby</span>}
-                      {emp.wage >= p75 && !a.standby && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}
-                      <span style={{ fontSize: 10, color: "#6b7280" }}>€{emp.wage.toFixed(2)}/u</span>
-                      <button style={btnTiny()} onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}>X</button>
+                    <div key={idx} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 8px", borderRadius:8, background:"white", border:"1px solid #e5e7eb", boxShadow:"0 1px 1px rgba(0,0,0,0.04)" }}>
+                      <span style={{ fontSize:11, fontWeight:600 }}>{emp.name}</span>
+                      {a.standby && <span style={tinyTag("#e5e7eb","#374151")}>Standby</span>}
+                      {emp.wage >= p75 && !a.standby && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
+                      <span style={{ fontSize:10, color:"#6b7280" }}>€{emp.wage.toFixed(2)}/u</span>
+                      <button style={btnTiny()} onClick={()=>removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}>X</button>
                     </div>
-                  )
+                  );
                 })}
-                {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
-                  <button key={j} style={btnDashed()} onClick={() => openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
+                {Array.from({length: Math.max(spots - filled, 0)}).map((_, j)=>(
+                  <button key={j} style={btnDashed()} onClick={()=>openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
                 ))}
               </div>
             </div>
-          )
+          );
         })}
       </div>
-      <div style={{ marginTop: 6 }}>
+
+      <div style={{ marginTop:6 }}>
         {!addingStart ? (
-          <button style={btnSm()} onClick={() => setAddingStart(true)}>+ Start toevoegen</button>
+          <button style={btnSm()} onClick={()=>setAddingStart(true)}>+ Start toevoegen</button>
         ) : (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-            <select value={newStart} onChange={e => setNewStart(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-              {times.map(t => <option key={t} value={t}>{t}</option>)}
+          <div style={{ display:"flex", gap:8, alignItems:"center", marginTop:6 }}>
+            <select value={newStart} onChange={e=>setNewStart(e.target.value)} style={{ padding:"6px 8px", borderRadius:8, border:"1px solid #e5e7eb" }}>
+              {times.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
-            <button style={btnSm()} onClick={() => { onAddStart(dayKey, shiftKey, entryIndex, newStart); setAddingStart(false) }}>Opslaan</button>
-            <button style={btnSm()} onClick={() => setAddingStart(false)}>Annuleer</button>
+            <button style={btnSm()} onClick={()=>{ onAddStart(dayKey, shiftKey, entryIndex, newStart); setAddingStart(false); }}>Opslaan</button>
+            <button style={btnSm()} onClick={()=>setAddingStart(false)}>Annuleer</button>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
+
 
 function Bench({ employees, p75 }) {
   return (
@@ -931,33 +946,43 @@ function AssignModal({ onClose, onChoose, employees, assignments, dayKey, shiftK
     return list.map(a => a.employeeId)
   }))
 
-  const candidates = employees.map(e => {
-    let eligible = true
-    if (!isAvail(e.id)) eligible = false
-    if (hasAnyAssignmentInDay(e.id)) eligible = false
-    if (isStandby && !e.allowedStandby) eligible = false
-    if (!isStandby) {
-      if ((e.skills[role] ?? 0) < 3) eligible = false
-      if (requiresOpen(start) && !e.canOpen) eligible = false
-      if (requiresClose(start) && !e.canClose) eligible = false
-      const avoid = new Set(e.avoidWith || [])
-      for (const gid of groupIds) { if (avoid.has(gid)) { eligible = false; break } }
-    }
-    if (q && !e.name.toLowerCase().includes(q.toLowerCase())) eligible = false
-    const p = prefFrom(shiftKey, start)
-    const prefers = !!(p && (e.prefs || []).includes(p))
-    const prefer = new Set(e.preferWith || [])
-    let preferScore = 0; groupIds.forEach(id => { if (prefer.has(id)) preferScore++ })
-    return { e, eligible, prefers, preferScore }
-  }).filter(r => r.eligible).sort((a, b) => {
-    if (a.prefers !== b.prefers) return a.prefers ? -1 : 1
-    if (a.preferScore !== b.preferScore) return b.preferScore - a.preferScore
-    if (role !== 'Standby') {
-      const sa = a.e.skills[role] ?? 0, sb = b.e.skills[role] ?? 0
-      if (sa !== sb) return sb - sa
-    }
-    return a.e.wage - b.e.wage
-  })
+const candidates = employees.map(e => {
+  let eligible = true;
+
+  // beschikbaarheid
+  if (!isAvail(e.id)) eligible = false;
+
+  // max 1 dienst per dag
+  if (hasAnyAssignmentInDay(e.id)) eligible = false;
+
+  // standby alleen als toegestaan
+  if (isStandby && !e.allowedStandby) eligible = false;
+
+  // rol-skill >=3 (niet voor standby)
+  if (!isStandby && ((e.skills?.[role] ?? 0) < 3)) eligible = false;
+
+  // koppelregels: liever-niet samen
+  const avoid = new Set(e.avoidWith || []);
+  for (const gid of groupIds){ if (avoid.has(gid)) { eligible=false; break; } }
+
+  // zoekfilter
+  if (q && !e.name.toLowerCase().includes(q.toLowerCase())) eligible = false;
+
+  const p = prefFrom(shiftKey, start);
+  const prefers = !!(p && (e.prefs || []).includes(p));
+  const prefer = new Set(e.preferWith || []);
+  let preferScore = 0; groupIds.forEach(id => { if (prefer.has(id)) preferScore++; });
+
+  return { e, eligible, prefers, preferScore };
+}).filter(r => r.eligible).sort((a,b)=>{
+  if (a.prefers !== b.prefers) return a.prefers ? -1 : 1;
+  if (a.preferScore !== b.preferScore) return b.preferScore - a.preferScore;
+  if (role !== 'Standby') {
+    const sa = a.e.skills?.[role] ?? 0, sb = b.e.skills?.[role] ?? 0;
+    if (sa !== sb) return sb - sa;
+  }
+  return a.e.wage - b.e.wage;
+});
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -1310,6 +1335,28 @@ function hasMentorInShift(assignments, dayKey, shiftKey, employees){
     for (const a of list) {
       const emp = employees.find(e => e.id === a.employeeId);
       if (emp?.isMentor) return true;
+    }
+  }
+  return false;
+}
+function hasOpenerInShift(assignments, dayKey, shiftKey, employees){
+  for(const k of Object.keys(assignments)){
+    const [d,s,role] = k.split(':');
+    if(d!==dayKey || s!==shiftKey || role==='Standby') continue;
+    for(const a of (assignments[k]||[])){
+      const emp = employees.find(e=>e.id===a.employeeId);
+      if(emp?.canOpen) return true;
+    }
+  }
+  return false;
+}
+function hasCloserInShift(assignments, dayKey, shiftKey, employees){
+  for(const k of Object.keys(assignments)){
+    const [d,s,role] = k.split(':');
+    if(d!==dayKey || s!==shiftKey || role==='Standby') continue;
+    for(const a of (assignments[k]||[])){
+      const emp = employees.find(e=>e.id===a.employeeId);
+      if(emp?.canClose) return true;
     }
   }
   return false;
