@@ -679,34 +679,37 @@ function buildAutofillAssignments() {
       return { ...prev, [weekKey]: wk }
     })
   }
-  function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
-    setNeedsByWeek(prev => {
-      const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
-      const list = (wk[dayKey]?.[shiftKey] || []).slice()
-      const entry = { ...list[entryIndex] }
-      entry.starts = entry.starts.map(s => (s === oldStart ? newStart : s))
-      entry.starts = [...new Set(entry.starts)]
-      if (entry.starts.length > 1) entry.count = entry.starts.length
-      list[entryIndex] = entry
-      wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
-      return { ...prev, [weekKey]: wk }
-    })
-    setAssignmentsByWeek(prev => {
-      const wk = { ...(prev[weekKey] || {}) }
-      const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
-      const newKey = `${dayKey}:${shiftKey}:${role}:${newStart}`
-      if (wk[oldKey]) {
-        const moved = wk[oldKey]
-        delete wk[oldKey]
-        const merged = [ ...(wk[newKey] || []), ...moved ]
-        // dedupe per employee
-        const seen = new Set()
-        wk[newKey] = merged.filter(a => { if (seen.has(a.employeeId)) return false; seen.add(a.employeeId); return true })
-      }
-      return { ...prev, [weekKey]: wk }
-    })
-  }
-
+function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
+  setNeedsByWeek(prev => {
+    const wk = { ...(prev[weekKey] || deepClone(defaultNeeds)) }
+    const list = (wk[dayKey]?.[shiftKey] || []).slice()
+    const entry = { ...list[entryIndex] }
+    entry.starts = entry.starts.map(s => (s === oldStart ? newStart : s))
+    entry.starts = [...new Set(entry.starts)]
+    if (entry.starts.length > 1) entry.count = entry.starts.length
+    list[entryIndex] = entry
+    wk[dayKey] = { ...(wk[dayKey] || {}), [shiftKey]: list }
+    return { ...prev, [weekKey]: wk }
+  })
+  setAssignmentsByWeek(prev => {
+    const wk = { ...(prev[weekKey] || {}) }
+    const oldKey = `${dayKey}:${shiftKey}:${role}:${oldStart}`
+    const newKey = `${dayKey}:${shiftKey}:${role}:${newStart}`
+    if (wk[oldKey]) {
+      const moved = wk[oldKey]
+      delete wk[oldKey]
+      const merged = [ ...(wk[newKey] || []), ...moved ]
+      const seen = new Set()
+      wk[newKey] = merged.filter(a => {
+        if (seen.has(a.employeeId)) return false
+        seen.add(a.employeeId)
+        return true
+      })
+    }
+    return { ...prev, [weekKey]: wk }
+  })
+}
+            
   function autofillAndTest() { autofill() }
 
   function shiftCostDayLabel(dayKey) { return `€${dayCost(dayKey).toFixed(2)}` }
@@ -826,26 +829,25 @@ function buildAutofillAssignments() {
 
         {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
         {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
-        {tab === 'instellingen' && <Settings />}
+        {tab === 'instellingen' && (<Settings showRejectedCandidates={showRejectedCandidates}  setShowRejectedCandidates={setShowRejectedCandidates}  />)}
         {tab === 'export' && <ExportView />}
+        
       </main>
 
       <footer style={{ padding: "24px 0", textAlign: "center", fontSize: 12, color: "#6b7280" }}>© Roostertool Brasserie — MVP Prototype</footer>
 
-      {picker && (
-        <AssignModal
-          onClose={() => setPicker(null)}
-          onChoose={(empId) => { addAssignment(picker.dayKey, picker.shiftKey, picker.role, picker.start, empId); setPicker(null) }}
-          employees={employees}
-          assignments={assignments}
-          dayKey={picker.dayKey}
-          shiftKey={picker.shiftKey}
-          role={picker.role}
-          start={picker.start}
-          p75={p75}
-          availability={availability}
-        />
-      )}
+{picker && (
+  <AssignModal
+    picker={picker}
+    onClose={() => setPicker(null)}
+    employees={employees}
+    assignments={assignments}
+    addAssignment={addAssignment}
+    p75={p75}
+    showRejectedCandidates={showRejectedCandidates}
+  />
+)}
+
 
       {editEmp && (
         <EditEmployeeModal
