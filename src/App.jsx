@@ -2021,10 +2021,6 @@ function shiftEndTime(shiftKey, start){
   return startM + dur;
 }
 
-const dayOrder = ["ma","di","wo","do","vr","za","zo"];
-function prevDayKey(d){ const i=dayOrder.indexOf(d); return dayOrder[(i+6)%7]; }
-function nextDayKey(d){ const i=dayOrder.indexOf(d); return dayOrder[(i+1)%7]; }
-
 function longestRunWith(daysSet){
   let best=0, cur=0;
   for(let i=0;i<7;i++){
