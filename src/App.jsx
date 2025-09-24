@@ -252,7 +252,7 @@ function addAssignment(dayKey, shiftKey, role, start, employeeId){
   setAssignmentsByWeek(prev=>{
     const prevWeek = prev[weekKey] || {};
 
-    // 1 dienst per dag (standby telt als dienst voor deze regel)
+    // 1 dienst per dag (standby telt als dienst)
     const conflict = Object.keys(prevWeek).some(k=>{
       const [d] = k.split(':');
       if(d!==dayKey) return false;
@@ -265,9 +265,9 @@ function addAssignment(dayKey, shiftKey, role, start, employeeId){
     if(role==='Standby' && !emp.allowedStandby) return prev;
     if(role!=='Standby' && ((emp.skills?.[role]??0) < 3)) return prev;
 
-    // Contractregels
+    // Contractregels (soft voor max uren/week)
     const check = wouldViolateContractOnAdd(emp, dayKey, shiftKey, role, start, prevWeek);
-    if(!check.ok) return prev;
+    if(!check.ok && check.reason !== "max uren/week") return prev; // alles behalve max-uren blijft hard
 
     const key = `${dayKey}:${shiftKey}:${role}:${start}`;
     const list = prevWeek[key] || [];
@@ -716,7 +716,8 @@ function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
 
         {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
         {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
-        {tab === 'instellingen' && (<Settings showRejectedCandidates={showRejectedCandidates}  setShowRejectedCandidates={setShowRejectedCandidates} employees={employees} />)}
+        {tab === 'instellingen' && (<Settings showRejectedCandidates={showRejectedCandidates}  setShowRejectedCandidates={setShowRejectedCandidates} employees={employees} assignments={assignments}
+    empWeekHours={empWeekHours} />)}
         {tab === 'export' && <ExportView />}
         
       </main>
@@ -732,9 +733,10 @@ function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
     addAssignment={addAssignment}
     p75={p75}
     showRejectedCandidates={showRejectedCandidates}
+    isAvailable={isAvailable}
+    empWeekHours={empWeekHours}
   />
 )}
-
 
       {editEmp && (
         <EditEmployeeModal
@@ -961,113 +963,161 @@ function RoosterCellHeader({ role, count, onRemoveEntry }) {
 }
 
 function Cell({
-  dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75,
-  addAssignment, removeAssignment, onChangeStart, onAddStart, onRemoveStart, onRemoveEntry,
-  needsOpenShift, needsCloseShift
+  dayKey,
+  shiftKey,
+  entryIndex,
+  entry,
+  openPicker,
+  employees,
+  assignments,
+  p75,
+  addAssignment,
+  removeAssignment,
+  onChangeStart,
 }) {
   const role = entry.role;
   const [editKey, setEditKey] = React.useState(null);
-  const [addingStart, setAddingStart] = React.useState(false);
-  const [newStart, setNewStart] = React.useState("10:00");
-  const times = React.useMemo(() => halfHours(), []);
+
+  const allHalfHours = React.useMemo(() => {
+    const times = [];
+    const add = (h, m) => times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    for (let h = 6; h <= 24; h++) {
+      add(h % 24, 0);
+      add(h % 24, 30);
+    }
+    add(1, 0);
+    add(1, 30); // tot 01:30
+    return times;
+  }, []);
 
   return (
-    <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, background: "white" }}>
-      <RoosterCellHeader role={role} count={entry.count} onRemoveEntry={() => onRemoveEntry(dayKey, shiftKey, entryIndex)} />
-      <div style={{ display: "grid", gap: 6 }}>
+    <div className="border rounded-xl p-2 bg-white/70">
+      <div className="text-xs font-medium mb-1 flex items-center gap-2">
+        <span className="px-2 py-0.5 rounded-full bg-gray-100">{role}</span>
+        <span className="text-gray-500">{entry.count}×</span>
+      </div>
+
+      <div className="space-y-1">
         {entry.starts.map((start, i) => {
-          const k = `${dayKey}:${shiftKey}:${role}:${start}`;
-          const list = assignments[k] || [];
-          const spots = (entry.starts.length > 1) ? 1 : entry.count;
+          const key = `${dayKey}:${shiftKey}:${role}:${start}`;
+          const list = assignments[key] || [];
           const filled = list.length;
+          const spots = entry.count;
 
-          // Shift-breed status (niet per start)
-          const openerAnywhere = hasOpenerInShift(assignments, dayKey, shiftKey, employees);
-          const closerAnywhere = hasCloserInShift(assignments, dayKey, shiftKey, employees);
-          const mentorAnywhere = hasMentorInShift(assignments, dayKey, shiftKey, employees);
-
-          // Binnen dit startblok: rookie aanwezig? en is er pairwise 'liever niet samen'?
-          const currentIds = list.map(a => a.employeeId);
-          const hasRookieHere = currentIds.some(id => employees.find(e => e.id === id)?.isRookie);
-          let avoidInGroup = false;
-          for (let a = 0; a < currentIds.length; a++) {
-            for (let b = a + 1; b < currentIds.length; b++) {
-              if (hasAvoidWith(currentIds[a], [currentIds[b]], employees)) { avoidInGroup = true; break; }
-            }
-            if (avoidInGroup) break;
-          }
+          const needOpen = requiresOpen(start);
+          const needClose = requiresClose(start);
+          const hasOpener = list.some((a) => {
+            const emp = employees.find((e) => e.id === a.employeeId);
+            return !!emp?.canOpen;
+          });
+          const hasCloser = list.some((a) => {
+            const emp = employees.find((e) => e.id === a.employeeId);
+            return !!emp?.canClose;
+          });
 
           return (
-            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
-              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                <span>Start {start} · {filled}/{spots}</span>
+            <div key={i} className="rounded-lg border p-1">
+              <div className="text-[11px] text-gray-600 mb-1 flex items-center gap-2">
+                <span>
+                  Start {start} · {filled}/{spots}
+                </span>
 
-                {/* Shift-brede, zachte waarschuwingen */}
-                {needsOpenShift  && !openerAnywhere && <span style={pill(false)}>Open-medewerker ontbreekt</span>}
-                {needsCloseShift && !closerAnywhere && <span style={pill(false)}>Sluit-medewerker ontbreekt</span>}
-
-                {/* Koppelregels & mentor (mentor telt shift-breed; Standby niet) */}
-                {hasRookieHere && !mentorAnywhere && <span style={pill(false)}>Mentor ontbreekt</span>}
-                {avoidInGroup && <span style={pill(false)}>Conflict: liever niet samen</span>}
+                {needOpen && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      hasOpener ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {hasOpener ? "Open OK" : "Open ontbreekt"}
+                  </span>
+                )}
+                {needClose && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      hasCloser ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {hasCloser ? "Sluit OK" : "Sluit ontbreekt"}
+                  </span>
+                )}
 
                 <button
-                  style={{ marginLeft: "auto", ...btnSm() }}
-                  onClick={() => setEditKey(editKey === k ? null : k)}
+                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded border"
+                  onClick={() => setEditKey(editKey === key ? null : key)}
                 >
                   🕒 Tijd
                 </button>
-                {editKey === k && (
+                {editKey === key && (
                   <select
+                    className="text-[11px] px-2 py-1 rounded border"
                     value={start}
-                    onChange={(e) => { const ns = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns); }}
-                    style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setEditKey(null);
+                      onChangeStart(dayKey, shiftKey, entryIndex, role, start, newStart);
+                    }}
                   >
-                    {times.map(t => (<option key={t} value={t}>{t}</option>))}
+                    {allHalfHours.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
                   </select>
                 )}
-                <button title="Verwijder start" style={btnSm()} onClick={() => onRemoveStart(dayKey, shiftKey, entryIndex, start)}>🗑</button>
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div className="flex flex-wrap gap-1">
                 {list.map((a, idx) => {
-                  const emp = employees.find(e => e.id === a.employeeId);
+                  const emp = employees.find((e) => e.id === a.employeeId);
                   if (!emp) return null;
+
+                  const hours = empWeekHours(assignments, emp.id);
+                  const overMax = (emp.maxHoursWeek || 0) > 0 && hours > emp.maxHoursWeek;
+
                   return (
-                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 8, background: "white", border: "1px solid #e5e7eb", boxShadow: "0 1px 1px rgba(0,0,0,0.04)" }}>
-                      <span style={{ fontSize: 11, fontWeight: 600 }}>{emp.name}</span>
-                      {a.standby && <span style={tinyTag("#e5e7eb", "#374151")}>Standby</span>}
-                      {emp.wage >= p75 && !a.standby && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}
-                      <span style={{ fontSize: 10, color: "#6b7280" }}>€{emp.wage.toFixed(2)}/u</span>
-                      <button style={btnTiny()} onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}>X</button>
+                    <div
+                      key={idx}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md border bg-white"
+                    >
+                      <span className="text-[11px] font-medium">{emp.name}</span>
+                      {a.standby && (
+                        <span className="text-[10px] px-1 rounded bg-gray-100 text-gray-700">Standby</span>
+                      )}
+                      {!a.standby && emp.wage >= p75 && (
+                        <span className="text-[10px] px-1 rounded bg-rose-100 text-rose-700">Duur</span>
+                      )}
+                      {!a.standby && overMax && (
+                        <span className="text-[10px] px-1 rounded bg-amber-100 text-amber-700">Over max</span>
+                      )}
+                      <span className="text-[10px] text-gray-500">€{emp.wage.toFixed(2)}/u</span>
+                      <button
+                        className="ml-1 text-[10px] px-1.5 py-0.5 rounded border hover:bg-gray-50"
+                        onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}
+                        title="Verwijder"
+                      >
+                        X
+                      </button>
                     </div>
                   );
                 })}
+
                 {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
-                  <button key={j} style={btnDashed()} onClick={() => openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
+                  <button
+                    key={j}
+                    className="text-[11px] px-2 py-1 rounded-md border border-dashed hover:border-solid hover:bg-gray-50"
+                    onClick={() => openPicker({ dayKey, shiftKey, role, start })}
+                  >
+                    + Voeg toe
+                  </button>
                 ))}
               </div>
             </div>
           );
         })}
       </div>
-
-      <div style={{ marginTop: 6 }}>
-        {!addingStart ? (
-          <button style={btnSm()} onClick={() => setAddingStart(true)}>+ Start toevoegen</button>
-        ) : (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-            <select value={newStart} onChange={e => setNewStart(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-              {times.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <button style={btnSm()} onClick={() => { onAddStart(dayKey, shiftKey, entryIndex, newStart); setAddingStart(false); }}>Opslaan</button>
-            <button style={btnSm()} onClick={() => setAddingStart(false)}>Annuleer</button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
-
 
 function Bench({ employees, p75 }) {
   return (
@@ -1133,46 +1183,42 @@ function ShiftWarningsBadge({ info }) {
   return <span style={style}>{info.dure}/{info.limit}</span>
 }
 
-function AssignModal({ picker, onClose, employees, assignments, addAssignment, p75, showRejectedCandidates, isAvailable }) {
+function AssignModal({ picker, onClose, employees, assignments, addAssignment, p75, showRejectedCandidates, isAvailable, empWeekHours }) {
   if (!picker) return null;
   const { dayKey, shiftKey, role, start } = picker;
   const [q, setQ] = React.useState("");
 
-  // Lokale, robuuste helpers (voorkomen missing-function crashes)
+  // Lokale helpers
   const safeIsAvailable = (id, d, s) => {
     try { return typeof isAvailable === 'function' ? !!isAvailable(id, d, s) : true; }
     catch { return true; }
   };
-  const hasOpenerInShiftLocal = (asgn, d, s) => {
+  const openerAnywhere = (() => {
     try {
-      for (const k of Object.keys(asgn)) {
-        const [dd, ss, r] = k.split(':');
-        if (dd !== d || ss !== s || r === 'Standby') continue;
-        const list = asgn[k] || [];
-        for (const a of list) { const emp = employees.find(e => e.id === a.employeeId); if (emp?.canOpen) return true; }
+      for (const k of Object.keys(assignments)) {
+        const [dd, ss, rr] = k.split(':');
+        if (dd !== dayKey || ss !== shiftKey || rr === 'Standby') continue;
+        for (const a of (assignments[k] || [])) {
+          const emp = employees.find(e => e.id === a.employeeId);
+          if (emp?.canOpen) return true;
+        }
       }
     } catch {}
     return false;
-  };
-  const hasCloserInShiftLocal = (asgn, d, s) => {
+  })();
+  const closerAnywhere = (() => {
     try {
-      for (const k of Object.keys(asgn)) {
-        const [dd, ss, r] = k.split(':');
-        if (dd !== d || ss !== s || r === 'Standby') continue;
-        const list = asgn[k] || [];
-        for (const a of list) { const emp = employees.find(e => e.id === a.employeeId); if (emp?.canClose) return true; }
+      for (const k of Object.keys(assignments)) {
+        const [dd, ss, rr] = k.split(':');
+        if (dd !== dayKey || ss !== shiftKey || rr === 'Standby') continue;
+        for (const a of (assignments[k] || [])) {
+          const emp = employees.find(e => e.id === a.employeeId);
+          if (emp?.canClose) return true;
+        }
       }
     } catch {}
     return false;
-  };
-  const wouldViolateLocal = (e, d, s, r, st) => {
-    try { return wouldViolateContractOnAdd(e, d, s, r, st, assignments); }
-    catch { return { ok: true }; }
-  };
-  const reqOpen = (()=>{ try { return requiresOpen(start); } catch { return false; } })();
-  const reqClose= (()=>{ try { return requiresClose(start);} catch { return false; } })();
-  const openerAnywhere = hasOpenerInShiftLocal(assignments, dayKey, shiftKey);
-  const closerAnywhere = hasCloserInShiftLocal(assignments, dayKey, shiftKey);
+  })();
 
   const key = `${dayKey}:${shiftKey}:${role}:${start}`;
   const groupIds = (assignments?.[key] || []).map(a => a.employeeId);
@@ -1187,6 +1233,7 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
   }
 
   const rows = (employees || []).map(e => {
+    // Basiseligibiliteit
     let eligible = true;
     let reason = "";
 
@@ -1203,17 +1250,18 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
       }
     }
 
+    // Koppelregels (liever niet samen met aanwezigen in dit slot)
     if (eligible) {
       const avoid = new Set(e.avoidWith || []);
       for (const gid of groupIds) { if (avoid.has(gid)) { eligible = false; reason = "Liever niet samen"; break; } }
     }
 
-    if (eligible) {
-      const chk = wouldViolateLocal(e, dayKey, shiftKey, role, start);
-      if (!chk.ok) { eligible = false; reason = `Contract: ${chk.reason}`; }
-    }
+    // SOFT: max uren/week – niet blokkeren, wel waarschuwen
+    const currentHours = empWeekHours(assignments, e.id);
+    const nextHours   = role === 'Standby' ? currentHours : currentHours + 7;
+    const warnOverMax = (e.maxHoursWeek || 0) > 0 && nextHours > e.maxHoursWeek;
 
-    // sorteer-signalen
+    // Sorteersignalen
     let prefers = false;
     try {
       const p = prefFrom(shiftKey, start);
@@ -1223,18 +1271,18 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
     let preferScore = 0;
     groupIds.forEach(id => { if (preferSet.has(id)) preferScore++; });
 
-    const wantOpen  = reqOpen  && !openerAnywhere;
-    const wantClose = reqClose && !closerAnywhere;
+    const wantOpen  = requiresOpen(start)  && !openerAnywhere;
+    const wantClose = requiresClose(start) && !closerAnywhere;
     const openBoost = wantOpen  && e.canOpen  ? 1 : 0;
     const closeBoost= wantClose && e.canClose ? 1 : 0;
     const skill = role === "Standby" ? 0 : ((e.skills && e.skills[role]) ?? 0);
 
-    return { e, eligible, reason, prefers, preferScore, openBoost, closeBoost, skill };
+    return { e, eligible, reason, prefers, preferScore, openBoost, closeBoost, skill, warnOverMax, nextHours };
   });
 
   const nameMatch = r => !q || r.e.name.toLowerCase().includes(q.toLowerCase());
 
-  const eligible = rows
+  const eligibleRows = rows
     .filter(r => r.eligible && nameMatch(r))
     .sort((a, b) => {
       if (a.openBoost !== b.openBoost) return b.openBoost - a.openBoost;
@@ -1242,6 +1290,8 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
       if (a.prefers !== b.prefers) return a.prefers ? -1 : 1;
       if (a.preferScore !== b.preferScore) return b.preferScore - a.preferScore;
       if (a.skill !== b.skill) return b.skill - a.skill;
+      // Kandidaten met waarschuwing (over max) komen lager in de lijst
+      if (a.warnOverMax !== b.warnOverMax) return a.warnOverMax ? 1 : -1;
       if ((a.e.wage >= p75) !== (b.e.wage >= p75)) return a.e.wage >= p75 ? 1 : -1;
       return a.e.wage - b.e.wage;
     });
@@ -1270,18 +1320,21 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
         </div>
 
         <div style={{ padding:12, display:"grid", gap:8, maxHeight:"70vh", overflow:"auto" }}>
-          {eligible.length === 0 && rejected.length === 0 && (
+          {eligibleRows.length === 0 && rejected.length === 0 && (
             <div style={{ fontSize:14, color:"#6b7280" }}>Geen kandidaten voor dit slot.</div>
           )}
 
-          {eligible.map(({ e }) => (
-            <div key={e.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", border:"1px solid #e5e7eb", borderRadius:12, padding:10, background:"white" }}>
+          {eligibleRows.map(({ e, warnOverMax, nextHours }) => (
+            <div key={e.id} style={{
+              display:"flex", alignItems:"center", justifyContent:"space-between",
+              border:"1px solid #e5e7eb", borderRadius:12, padding:10,
+              background: warnOverMax ? "#fafafa" : "white", opacity: warnOverMax ? 0.85 : 1
+            }}>
               <div style={{ display:"grid", gap:4 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <span style={{ fontWeight:600 }}>{e.name}</span>
-                  {role !== 'Standby' && (
-                    <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e?.skills?.[role] ?? 0)}</span>
-                  )}
+                  {warnOverMax && <span style={tinyTag("#fef3c7","#92400e")}>Over max uren</span>}
+                  {role !== 'Standby' && <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e?.skills?.[role] ?? 0)}</span>}
                   {e.wage >= p75 && role !== 'Standby' && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
                   {e.canOpen && <span style={tinyTag("#e0e7ff","#1d4ed8")}>Open</span>}
                   {e.canClose && <span style={tinyTag("#dcfce7","#16a34a")}>Sluit</span>}
@@ -1291,10 +1344,13 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
                   €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
                 </div>
                 <div style={{ fontSize:11, color:"#6b7280" }}>
-                  FOH {e?.skills?.FOH ?? 0} · Host {e?.skills?.Host ?? 0} · Bar {e?.skills?.Bar ?? 0} · Runner {e?.skills?.Runner ?? 0} · AR {e?.skills?.Allround ?? 0}
+                  Na keuze: {nextHours}u t.o.v. max {e.maxHoursWeek ?? "–"}u
                 </div>
               </div>
-              <button style={btnSm()} onClick={() => { addAssignment(dayKey, shiftKey, role, start, e.id); onClose(); }}>
+              <button
+                style={btnSm()}
+                onClick={() => { addAssignment(dayKey, shiftKey, role, start, e.id); onClose(); }}
+              >
                 Kies
               </button>
             </div>
@@ -1309,19 +1365,9 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ fontWeight:600 }}>{e.name}</span>
                       <span style={{ fontSize:11, color:"#6b7280" }}>{reason}</span>
-                      {role !== 'Standby' && (
-                        <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e?.skills?.[role] ?? 0)}</span>
-                      )}
-                      {e.wage >= p75 && role !== 'Standby' && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
-                      {e.canOpen && <span style={tinyTag("#e0e7ff","#1d4ed8")}>Open</span>}
-                      {e.canClose && <span style={tinyTag("#dcfce7","#16a34a")}>Sluit</span>}
-                      {e.allowedStandby && <span style={tinyTag("#f3f4f6","#374151")}>Standby</span>}
                     </div>
                     <div style={{ fontSize:12, color:"#6b7280" }}>
                       €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
-                    </div>
-                    <div style={{ fontSize:11, color:"#6b7280" }}>
-                      FOH {e?.skills?.FOH ?? 0} · Host {e?.skills?.Host ?? 0} · Bar {e?.skills?.Bar ?? 0} · Runner {e?.skills?.Runner ?? 0} · AR {e?.skills?.Allround ?? 0}
                     </div>
                   </div>
                   <button style={{ ...btnSm(), opacity:0.6, cursor:"not-allowed" }} disabled>Niet mogelijk</button>
@@ -1689,7 +1735,7 @@ function Availability({ employees, days, availability, setAvailabilityByWeek, we
   )
 }
 
-function Settings({ showRejectedCandidates, setShowRejectedCandidates, employees }) {
+function Settings({ showRejectedCandidates, setShowRejectedCandidates, employees, assignments, empWeekHours }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <Panel title="Planner · Selectie">
@@ -1703,38 +1749,50 @@ function Settings({ showRejectedCandidates, setShowRejectedCandidates, employees
         </label>
       </Panel>
 
-      <Panel title="Grenzen (weergave)">
+      <Panel title="Contract (weekoverzicht)">
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
-                <th style={{ padding: "8px" }}>Medewerker</th>
-                <th style={{ padding: "8px" }}>Max opeenvolgende dagen</th>
-                <th style={{ padding: "8px" }}>Min. rust (uur)</th>
-                <th style={{ padding: "8px" }}>Max sluit→open per week</th>
-                <th style={{ padding: "8px" }}>Max diensten/week</th>
+                <th style={{ padding: 8 }}>Medewerker</th>
+                <th style={{ padding: 8 }}>Gepland (u)</th>
+                <th style={{ padding: 8 }}>Min (u)</th>
+                <th style={{ padding: 8 }}>Max (u)</th>
+                <th style={{ padding: 8 }}>Δ t.o.v. min</th>
+                <th style={{ padding: 8 }}>Over max</th>
               </tr>
             </thead>
             <tbody>
-              {employees.map(e => (
-                <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px" }}>{e.name}</td>
-                  <td style={{ padding: "8px" }}>{e.maxConsecutiveDays ?? "–"}</td>
-                  <td style={{ padding: "8px" }}>{e.minRestHours ?? "–"}</td>
-                  <td style={{ padding: "8px" }}>{e.maxCloseOpenPerWeek ?? "–"}</td>
-                  <td style={{ padding: "8px" }}>{e.maxShiftsWeek ?? "–"}</td>
-                </tr>
-              ))}
+              {employees.map(e => {
+                const h = empWeekHours(assignments, e.id);          // jouw helper telt non-Standby × 7 u
+                const underMin = (e.minHoursWeek || 0) - h;         // positief = tekort
+                const overMax = Math.max(0, h - (e.maxHoursWeek || Infinity));
+                return (
+                  <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: 8 }}>{e.name}</td>
+                    <td style={{ padding: 8 }}>{h}</td>
+                    <td style={{ padding: 8 }}>{e.minHoursWeek ?? "–"}</td>
+                    <td style={{ padding: 8 }}>{e.maxHoursWeek ?? "–"}</td>
+                    <td style={{ padding: 8, color: underMin > 0 ? "#b45309" : "#374151" }}>
+                      {underMin > 0 ? `-${underMin}` : 0}
+                    </td>
+                    <td style={{ padding: 8, color: overMax > 0 ? "#b91c1c" : "#374151" }}>
+                      {overMax}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <div style={{ fontSize: 12, color: "#6b7280", marginTop: 8 }}>
-            Wil je deze grenzen wijzigen? Ga naar <b>Medewerkers → Bewerk</b>.
+            Standby telt niet mee voor uren. Uren per dienst: 7u.
           </div>
         </div>
       </Panel>
     </div>
   );
 }
+
 
 function ExportView() {
   return (
