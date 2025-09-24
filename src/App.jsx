@@ -767,19 +767,29 @@ function Bench({ employees, p75 }) {
     <div>
       <div style={{ marginBottom: 6, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: "#6b7280" }}>Beschikbaar</div>
       <div style={{ display: "grid", gap: 8 }}>
-        {employees.slice().sort((a, b) => a.wage - b.wage).map(e => (
-          <div key={e.id} style={{ border: "1px solid #e5e7eb", borderRadius: 12, background: "white", padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ fontWeight: 600 }}>{e.name}</div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>€{e.wage.toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(', ') : 'geen'}</div>
-              <div style={{ fontSize: 11, color: "#6b7280" }}>FOH {e.skills.FOH ?? 0} · Host {e.skills.Host ?? 0} · Bar {e.skills.Bar ?? 0} · Runner {e.skills.Runner ?? 0} · AR {e.skills.Allround ?? 0}</div>
+        {employees
+          .slice()
+          .sort((a, b) => (a.wage ?? 0) - (b.wage ?? 0))
+          .map(e => (
+            <div
+              key={e.id}
+              style={{ border: "1px solid #e5e7eb", borderRadius: 12, background: "white", padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <div>
+                <div style={{ fontWeight: 600 }}>{e.name}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>
+                  FOH {e.skills?.FOH ?? 0} · Host {e.skills?.Host ?? 0} · Bar {e.skills?.Bar ?? 0} · Runner {e.skills?.Runner ?? 0} · AR {e.skills?.Allround ?? 0}
+                </div>
+              </div>
+              <div>{(e.wage ?? 0) >= p75 && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}</div>
             </div>
-            <div>{e.wage >= p75 && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}</div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
-  )
+  );
 }
 
 function Panel({ title, children }) {
@@ -966,31 +976,90 @@ function EditEmployeeModal({ employee, onClose, onSave, employees }) {
   )
 }
 
+function Employees({ employees, setEmployees, p75, setEditEmp }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+      <Panel title="Medewerkers">
+        <div style={{ display: "grid", gap: 8 }}>
+          {employees.map(e => (
+            <div
+              key={e.id}
+              style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <div>
+                <div style={{ fontWeight: 600 }}>{e.name}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>
+                  FOH {e.skills?.FOH ?? 0} · Host {e.skills?.Host ?? 0} · Bar {e.skills?.Bar ?? 0} · Runner {e.skills?.Runner ?? 0} · AR {e.skills?.Allround ?? 0}
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>
+                  Standby: {e.allowedStandby ? "ja" : "nee"} · Open: {e.canOpen ? "ja" : "nee"} · Sluit: {e.canClose ? "ja" : "nee"}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={btnSm()} onClick={() => setEditEmp(e)}>Bewerk</button>
+                <button style={btnSm()} onClick={() => setEmployees(prev => prev.filter(x => x.id !== e.id))}>Verwijder</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="Nieuwe medewerker">
+        <NewEmployeeForm onAdd={emp => setEmployees(prev => [...prev, emp])} />
+      </Panel>
+
+      <Panel title="Import (later)">
+        <div style={{ fontSize: 14, color: "#6b7280" }}>CSV/Excel import volgt.</div>
+      </Panel>
+    </div>
+  );
+}
+
 function NewEmployeeForm({ onAdd }) {
-  const [name, setName] = useState('')
-  const [wage, setWage] = useState(15)
-  const [prefs, setPrefs] = useState([])
-  const [skills, setSkills] = useState({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 })
-  const [canOpen, setCanOpen] = useState(false)
-  const [canClose, setCanClose] = useState(false)
-  const [allowedStandby, setAllowedStandby] = useState(true)
-  const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+  const [name, setName] = React.useState('');
+  const [wage, setWage] = React.useState(15);
+  const [prefs, setPrefs] = React.useState([]);
+  const [skills, setSkills] = React.useState({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 });
+  const [canOpen, setCanOpen] = React.useState(false);
+  const [canClose, setCanClose] = React.useState(false);
+  const [allowedStandby, setAllowedStandby] = React.useState(true);
+
+  const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
 
   const skillInput = (key, label) => (
     <label style={{ display: "grid", gap: 4 }}>
       <span style={{ fontSize: 12 }}>{label}</span>
-      <input type="number" min={0} max={5} value={skills[key]} onChange={e => setSkills(s => ({ ...s, [key]: Math.max(0, Math.min(5, parseInt(e.target.value || '0', 10))) }))} style={{ width: 70, padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+      <input
+        type="number" min={0} max={5}
+        value={skills[key]}
+        onChange={e => setSkills(s => ({ ...s, [key]: Math.max(0, Math.min(5, parseInt(e.target.value || '0', 10))) }))}
+        style={{ width: 70, padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
+      />
     </label>
-  )
+  );
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Naam</span><input value={name} onChange={e => setName(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
-      <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Uurloon (€)</span><input type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
+      <label style={{ display: "grid", gap: 6 }}>
+        <span style={{ fontSize: 14 }}>Naam</span>
+        <input value={name} onChange={e => setName(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} />
+      </label>
+
+      <label style={{ display: "grid", gap: 6 }}>
+        <span style={{ fontSize: 14 }}>Uurloon (€)</span>
+        <input type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} />
+      </label>
+
       <div style={{ display: "flex", gap: 12, fontSize: 14, flexWrap: "wrap" }}>
-        {['open', 'tussen', 'sluit'].map(p => (<label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={() => togglePref(p)} /> {p}</label>))}
+        {['open', 'tussen', 'sluit'].map(p => (
+          <label key={p}><input type="checkbox" checked={prefs.includes(p)} onChange={() => togglePref(p)} /> {p}</label>
+        ))}
         <label><input type="checkbox" checked={prefs.length === 0} onChange={() => setPrefs([])} /> geen voorkeur</label>
       </div>
+
       <div style={{ display: "flex", gap: 12, fontSize: 14, flexWrap: "wrap" }}>
         {skillInput('FOH', 'FOH')}
         {skillInput('Host', 'Host')}
@@ -998,19 +1067,64 @@ function NewEmployeeForm({ onAdd }) {
         {skillInput('Runner', 'Runner')}
         {skillInput('Allround', 'Allround')}
       </div>
+
       <div style={{ display: "flex", gap: 12, fontSize: 14, flexWrap: "wrap" }}>
         <label><input type="checkbox" checked={canOpen} onChange={e => setCanOpen(e.target.checked)} /> kan openen</label>
         <label><input type="checkbox" checked={canClose} onChange={e => setCanClose(e.target.checked)} /> kan sluiten</label>
         <label><input type="checkbox" checked={allowedStandby} onChange={e => setAllowedStandby(e.target.checked)} /> mag standby</label>
       </div>
-      <button style={btn()} onClick={() => {
-        if (!name) return
-        const id = 'e' + Math.random().toString(36).slice(2, 7)
-        onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby })
-        setName(''); setPrefs([]); setSkills({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 }); setCanOpen(false); setCanClose(false); setAllowedStandby(true)
-      }}>Toevoegen</button>
+
+      <button
+        style={btn()}
+        onClick={() => {
+          if (!name) return;
+          const id = 'e' + Math.random().toString(36).slice(2, 7);
+          onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby });
+          setName(''); setPrefs([]); setSkills({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 });
+          setCanOpen(false); setCanClose(false); setAllowedStandby(true);
+        }}
+      >
+        Toevoegen
+      </button>
     </div>
-  )
+  );
+}
+
+function AvailabilityPicker({ value, onChange }) {
+  const type = value?.type || 'all';
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+      <select
+        value={type}
+        onChange={e => {
+          const v = e.target.value;
+          if (v === 'all') onChange({ type: 'all' });
+          else if (v === 'none') onChange({ type: 'none' });
+          else onChange({ type: 'range', from: '10:00', to: '22:00' });
+        }}
+        style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
+      >
+        <option value="all">Hele dag</option>
+        <option value="none">Niet</option>
+        <option value="range">Tijdvak</option>
+      </select>
+      {type === 'range' && (
+        <>
+          <input
+            style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
+            value={value?.from || '10:00'}
+            onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })}
+          />
+          <span>–</span>
+          <input
+            style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
+            value={value?.to || '22:00'}
+            onChange={e => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })}
+          />
+        </>
+      )}
+    </div>
+  );
 }
 
 function Availability({ employees, days, availability, setAvailabilityByWeek, weekKey }) {
