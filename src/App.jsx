@@ -132,7 +132,7 @@ export default function App() {
     }
   }
 
- function buildAutofillAssignments() {
+function buildAutofillAssignments() {
   const next = {};
   const byDay = {};
   const byDayStandby = {};
@@ -149,11 +149,12 @@ export default function App() {
         entry.starts.forEach(start => {
           const key = `${d.key}:${shiftKey}:${entry.role}:${start}`;
 
-          let placed = [];
-          let dureCount = 0;
-          const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1;
-          const needOpen = requiresOpen(start);
-          const needClose = requiresClose(start);
+          // mentor al ergens in deze shift (uit eerder geplaatste starts/rollen)
+          const mentorInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.isMentor);
+          });
 
           const candidates = employees
             .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : ((e.skills?.[entry.role] ?? 0) >= 3))
@@ -169,10 +170,11 @@ export default function App() {
               return a.wage - b.wage;
             });
 
-          const conflictsWithGroup = (candId, currentIds) => hasAvoidWith(candId, currentIds, employees);
-
-          let placedOpen = false;
-          let placedClose = false;
+          let placed = [];
+          let dureCount = 0;
+          const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1;
+          const needOpen = requiresOpen(start);
+          const needClose = requiresClose(start);
 
           for (const c of candidates) {
             if (placed.length >= perStartCount) break;
@@ -182,37 +184,23 @@ export default function App() {
 
             if (entry.role === 'Standby') {
               if (hasShift) continue;
-              if (conflictsWithGroup(c.id, placed.map(x => x.employeeId))) continue;
+              if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
               placed.push({ employeeId: c.id, standby: true });
               byDayStandby[d.key].add(c.id);
               continue;
             }
 
-            // Niet combineren met andere dienst op dezelfde dag
-            if (hasShift) continue;
-            if (hasSB) continue;
-
-            // Open/Sluit bevoegdheden
+            if (hasShift || hasSB) continue;
             if (needOpen && !c.canOpen) continue;
             if (needClose && !c.canClose) continue;
-
-            // Kostenmix (zacht): voorkom > limiet dure in autofill
             if (c.wage >= p75 && dureCount >= limitDure) continue;
+            if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
 
-            // Koppelregels: 'liever niet samen' vermijden
-            if (conflictsWithGroup(c.id, placed.map(x => x.employeeId))) continue;
-
-            // Rookie + Mentor: als er al rookie geplaatst is, probeer mentor te plaatsen (of omgekeerd)
-            const placedIds = placed.map(x => x.employeeId);
-            const hasRookie = placedIds.some(id => getEmp(id)?.isRookie) || c.isRookie;
-            const hasMentor = placedIds.some(id => getEmp(id)?.isMentor) || c.isMentor;
-
-            // Plaatsen
             placed.push({ employeeId: c.id, standby: false });
             byDay[d.key].add(c.id);
             if (c.wage >= p75) dureCount++;
 
-            // PreferWith bonus (zacht): probeer 1 voorkeur mee te nemen als er nog plek is
+            // zachte 'preferWith': probeer 1 maatje mee te nemen als er plek is
             if (placed.length < perStartCount) {
               const preferSet = new Set(c.preferWith || []);
               const prefCand = candidates.find(px =>
@@ -223,7 +211,7 @@ export default function App() {
                 (!needOpen || px.canOpen) &&
                 (!needClose || px.canClose) &&
                 (entry.role === 'Standby' ? !!px.allowedStandby : ((px.skills?.[entry.role] ?? 0) >= 3)) &&
-                !conflictsWithGroup(px.id, placed.map(x => x.employeeId)) &&
+                !hasAvoidWith(px.id, placed.map(x => x.employeeId), employees) &&
                 (preferSet.has(px.id) || (px.preferWith || []).includes(c.id))
               );
               if (prefCand && placed.length < perStartCount) {
@@ -232,15 +220,22 @@ export default function App() {
                 if (prefCand.wage >= p75 && entry.role !== 'Standby') dureCount++;
               }
             }
+          }
 
-            // Als rookie zonder mentor blijft en er nog plek is: probeer mentor
-            if (placed.length < perStartCount && hasRookie && !hasMentor) {
+          // Rookie zonder mentor? Alleen proberen mentor toe te voegen als die NOG NIET
+          // ergens in de HELE shift staat (shift-breed), en er nog plek is in dit startslot.
+          if (entry.role !== 'Standby' && placed.length < perStartCount) {
+            const placedIds = placed.map(x => x.employeeId);
+            const hasRookieLocal = placedIds.some(id => getEmp(id)?.isRookie);
+            const hasMentorLocal = placedIds.some(id => getEmp(id)?.isMentor);
+            const mentorShift = mentorInShiftAlready || hasMentorLocal;
+            if (hasRookieLocal && !mentorShift) {
               const mentor = candidates.find(mx =>
                 mx.isMentor &&
                 !byDay[d.key].has(mx.id) &&
                 !byDayStandby[d.key].has(mx.id) &&
                 !placed.some(p => p.employeeId === mx.id) &&
-                !conflictsWithGroup(mx.id, placed.map(x => x.employeeId)) &&
+                !hasAvoidWith(mx.id, placed.map(x => x.employeeId), employees) &&
                 (!needOpen || mx.canOpen) &&
                 (!needClose || mx.canClose)
               );
@@ -773,28 +768,31 @@ function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assi
             <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
               <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
                 <span>Start {start} · {filled}/{spots}</span>
-                {needOpen && <span style={pill(hasOpener)}>{hasOpener ? 'Open OK' : 'Open ontbreekt'}</span>}
-                {needClose && <span style={pill(hasCloser)}>{hasCloser ? 'Sluit OK' : 'Sluit ontbreekt'}</span>}
+               {needOpen && <span style={pill(hasOpener)}>{hasOpener ? 'Open OK' : 'Open ontbreekt'}</span>}
+{needClose && <span style={pill(hasCloser)}>{hasCloser ? 'Sluit OK' : 'Sluit ontbreekt'}</span>}
 {(() => {
   const currentIds = list.map(a => a.employeeId);
-  const avoid = hasAvoidWith('__probe__', currentIds, employees) && false; // placeholder no-op
-  const needs = rookieMentorStatus(currentIds, employees);
-  // badge voor 'liever niet samen' als het in de groep voorkomt (check paargewijs)
+
+  // check 'liever niet samen' binnen dit startblok
   let avoidInGroup = false;
-  for (let i=0;i<currentIds.length;i++){
-    for (let j=i+1;j<currentIds.length;j++){
+  for (let i = 0; i < currentIds.length; i++) {
+    for (let j = i + 1; j < currentIds.length; j++) {
       if (hasAvoidWith(currentIds[i], [currentIds[j]], employees)) { avoidInGroup = true; break; }
     }
     if (avoidInGroup) break;
   }
+
+  // rookies hier + geen mentor ergens in HELE shift (alle starts)
+  const hasRookieHere = currentIds.some(id => employees.find(e => e.id === id)?.isRookie);
+  const mentorAnywhereThisShift = hasMentorInShift(assignments, dayKey, shiftKey, employees);
+
   return (
     <>
       {avoidInGroup && <span style={pill(false)}>Conflict: liever niet samen</span>}
-      {needs.needsMentor && <span style={pill(false)}>Mentor ontbreekt</span>}
+      {hasRookieHere && !mentorAnywhereThisShift && <span style={pill(false)}>Mentor ontbreekt</span>}
     </>
   );
 })()}
-
                 <button style={{ marginLeft: "auto", ...btnSm() }} onClick={() => setEditKey(editKey === k ? null : k)}>🕒 Tijd</button>
                 {editKey === k && (
                   <select value={start} onChange={(e) => { const ns = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns) }} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
@@ -1302,6 +1300,19 @@ function rookieMentorStatus(currentIds, employees){
     if (e.isMentor) hasMentor = true;
   }
   return { hasRookie, hasMentor, needsMentor: hasRookie && !hasMentor };
+}
+function hasMentorInShift(assignments, dayKey, shiftKey, employees){
+  for (const k of Object.keys(assignments)) {
+    const [d, s, role] = k.split(':');
+    if (d !== dayKey || s !== shiftKey) continue;
+    if (role === 'Standby') continue; // standby telt niet mee als aanwezig
+    const list = assignments[k] || [];
+    for (const a of list) {
+      const emp = employees.find(e => e.id === a.employeeId);
+      if (emp?.isMentor) return true;
+    }
+  }
+  return false;
 }
 function btn() { return { padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white" } }
 function btnSm() { return { padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", background: "white", fontSize: 12 } }
