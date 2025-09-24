@@ -313,121 +313,10 @@ function buildAutofillAssignments() {
   days.forEach(d => {
     const dayNeeds = needs[d.key] || {};
 
-    // verwerk shifts zó dat 'standby' altijd als laatste komt
+    // 'standby' altijd als laatste
     const shiftKeys = Object.keys(dayNeeds).sort((a,b)=>{
-      if(a==='standby' && b!=='standby') return 1;
-      if(b==='standby' && a!=='standby') return -1;
-      return 0;
-    });
-
-    shiftKeys.forEach(shiftKey => {
-      const entries = dayNeeds[shiftKey] || [];
-
-      // bepaal of deze shift überhaupt opener/closer nodig heeft (op basis van starts)
-      const needsOpenShift  = entries.some(en => (en.starts||[]).some(s => requiresOpen(s)));
-      const needsCloseShift = entries.some(en => (en.starts||[]).some(s => requiresClose(s)));
-
-      entries.forEach(entry => {
-        const perStartCount = (entry.starts.length > 1) ? 1 : entry.count;
-
-        entry.starts.forEach(start => {
-          const key = `${d.key}:${shiftKey}:${entry.role}:${start}`;
-
-          // wat is al gepland in deze shift?
-          const mentorInShiftAlready = Object.keys(next).some(k => {
-            const [dd, ss, role2] = k.split(':');
-            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
-            return (next[k] || []).some(a => getEmp(a.employeeId)?.isMentor);
-          });
-          const openerInShiftAlready = Object.keys(next).some(k => {
-            const [dd, ss, role2] = k.split(':');
-            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
-            return (next[k] || []).some(a => getEmp(a.employeeId)?.canOpen);
-          });
-          const closerInShiftAlready = Object.keys(next).some(k => {
-            const [dd, ss, role2] = k.split(':');
-            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
-            return (next[k] || []).some(a => getEmp(a.employeeId)?.canClose);
-          });
-
-          // kandidaten: geen hard filter op open/close; Standby alleen als toegestaan; skills >=3 voor niet-standby
-          const candidates = employees
-            .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : ((e.skills?.[entry.role] ?? 0) >= 3))
-            .sort((a, b) => {
-              // prefereer opener/closer als shift dat nog mist
-              if (needsOpenShift && !openerInShiftAlready && (a.canOpen !== b.canOpen)) return a.canOpen ? -1 : 1;
-              if (needsCloseShift && !closerInShiftAlready && (a.canClose !== b.canClose)) return a.canClose ? -1 : 1;
-
-              // daarna voorkeurdienst
-              const p = prefFrom(shiftKey, start);
-              const ap = !!(p && (a.prefs || []).includes(p));
-              const bp = !!(p && (b.prefs || []).includes(p));
-              if (ap !== bp) return ap ? -1 : 1;
-
-              // dan skill voor de rol (geen Standby)
-              if (entry.role !== 'Standby') {
-                const sa = a.skills?.[entry.role] ?? 0, sb = b.skills?.[entry.role] ?? 0;
-                if (sa !== sb) return sb - sa;
-              }
-
-              // dan goedkoop eerst
-              return a.wage - b.wage;
-            });
-
-          let placed = [];
-          let dureCount = 0;
-          const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1;
-
-          for (const c of candidates) {
-            if (placed.length >= perStartCount) break;
-
-            const hasShift = byDay[d.key].has(c.id);
-            const hasSB = byDayStandby[d.key].has(c.id);
-
-            if (entry.role === 'Standby') {
-              // Standby mag niet gecombineerd met een andere dienst
-              if (hasShift) continue;
-              if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
-              placed.push({ employeeId: c.id, standby: true });
-              byDayStandby[d.key].add(c.id);
-              continue;
-            }
-
-            // niet combineren met andere dienst op dezelfde dag
-            if (hasShift || hasSB) continue;
-
-            // kostenmix zacht (blokkeer extra dure boven limiet)
-            if (c.wage >= p75 && dureCount >= limitDure) continue;
-
-            // koppelregels: liever-niet samen vermijden
-            if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
-
-            placed.push({ employeeId: c.id, standby: false });
-            byDay[d.key].add(c.id);
-            if (c.wage >= p75) dureCount++;
-
-            // zachte 'preferWith': probeer maatje mee te nemen als er plek is
-            if (placed.length < perStartCount) {
-              const preferSet = new Set(c.preferWith || []);
-              const prefCand = candidates.find(px =>
-                px.id !== c.id &&
-                !byDay[d.key].has(px.id) &&
-                !byDayStandby[d.key].has(px.id) &&
-                !placed.some(p => p.employeeId === px.id) &&
-                (entfunction buildAutofillAssignments() {
-  const next = {};
-  const byDay = {};
-  const byDayStandby = {};
-  days.forEach(d => { byDay[d.key] = new Set(); byDayStandby[d.key] = new Set(); });
-
-  const getEmp = (id) => employees.find(e => e.id === id);
-
-  days.forEach(d => {
-    const dayNeeds = needs[d.key] || {};
-
-    const shiftKeys = Object.keys(dayNeeds).sort((a,b)=>{
-      if(a==='standby' && b!=='standby') return 1;
-      if(b==='standby' && a!=='standby') return -1;
+      if (a === 'standby' && b !== 'standby') return 1;
+      if (b === 'standby' && a !== 'standby') return -1;
       return 0;
     });
 
@@ -462,41 +351,37 @@ function buildAutofillAssignments() {
           const candidates = employees
             .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : ((e.skills?.[entry.role] ?? 0) >= 3))
             .filter(e => {
-              // 1 dienst per dag
+              // nog niets op deze dag
               const alreadyToday = Object.keys(next).some(k=>{
-                const [dd] = k.split(':'); if(dd!==d.key) return false;
+                const [dd] = k.split(':'); if (dd !== d.key) return false;
                 return (next[k]||[]).some(a=>a.employeeId===e.id);
               });
-              if(alreadyToday) return false;
-              // contractregels (hypothetisch toevoegen)
+              if (alreadyToday) return false;
+              // contract check (hypothetisch toevoegen)
               const chk = wouldViolateContractOnAdd(e, d.key, shiftKey, entry.role, start, next);
               return chk.ok;
             })
             .sort((a, b) => {
-              // prioriteit: als shift opener/closer mist, kies iemand die kan openen/sluiten
               if (needsOpenShift && !openerInShiftAlready && (a.canOpen !== b.canOpen)) return a.canOpen ? -1 : 1;
               if (needsCloseShift && !closerInShiftAlready && (a.canClose !== b.canClose)) return a.canClose ? -1 : 1;
 
-              // daarna: wie zit nog onder zijn min-uren → die eerst
+              // onder min-uren eerst
               const aH = empWeekHours(next, a.id), bH = empWeekHours(next, b.id);
               const aUnder = (a.minHoursWeek||0) > 0 && aH < a.minHoursWeek;
               const bUnder = (b.minHoursWeek||0) > 0 && bH < b.minHoursWeek;
               if (aUnder !== bUnder) return aUnder ? -1 : 1;
 
-              // voorkeurdiensten
               const p = prefFrom(shiftKey, start);
               const ap = !!(p && (a.prefs || []).includes(p));
               const bp = !!(p && (b.prefs || []).includes(p));
               if (ap !== bp) return ap ? -1 : 1;
 
-              // skill voor de rol
               if (entry.role !== 'Standby') {
                 const sa = a.skills?.[entry.role] ?? 0, sb = b.skills?.[entry.role] ?? 0;
                 if (sa !== sb) return sb - sa;
               }
 
-              // goedkoop eerst
-              return a.wage - b.wage;
+              return a.wage - b.wage; // goedkoop eerst
             });
 
           let placed = [];
@@ -507,37 +392,35 @@ function buildAutofillAssignments() {
             if (placed.length >= perStartCount) break;
 
             const hasShift = Object.keys(next).some(k=>{
-              const [dd] = k.split(':'); if(dd!==d.key) return false;
+              const [dd] = k.split(':'); if (dd !== d.key) return false;
               return (next[k]||[]).some(a=>a.employeeId===c.id);
             });
             const hasSB = Object.keys(next).some(k=>{
-              const [dd,,role2] = k.split(':'); if(dd!==d.key || role2!=='Standby') return false;
+              const [dd,,role2] = k.split(':'); if (dd !== d.key || role2 !== 'Standby') return false;
               return (next[k]||[]).some(a=>a.employeeId===c.id);
             });
 
             if (entry.role === 'Standby') {
-              if (hasShift) continue;
+              if (hasShift) continue; // SB niet combineren
               if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
               placed.push({ employeeId: c.id, standby: true });
               continue;
             }
 
             if (hasShift || hasSB) continue;
-
             if (c.wage >= p75 && dureCount >= limitDure) continue;
-
             if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
 
             placed.push({ employeeId: c.id, standby: false });
             if (c.wage >= p75) dureCount++;
 
-            // zachte preferWith: probeer maatje mee te nemen
+            // zachte preferWith: probeer maatje mee te nemen als er plek is
             if (placed.length < perStartCount) {
               const preferSet = new Set(c.preferWith || []);
               const prefCand = candidates.find(px =>
                 px.id !== c.id &&
                 !Object.keys(next).some(k=>{
-                  const [dd] = k.split(':'); if(dd!==d.key) return false;
+                  const [dd] = k.split(':'); if (dd !== d.key) return false;
                   return (next[k]||[]).some(a=>a.employeeId===px.id);
                 }) &&
                 !placed.some(p => p.employeeId === px.id) &&
@@ -552,7 +435,7 @@ function buildAutofillAssignments() {
               }
             }
 
-            // Rookie zonder mentor en nog geen mentor ergens in de shift?
+            // Rookie aanwezig → zorg shift-breed voor een mentor (mag op ander startmoment)
             if (entry.role !== 'Standby' && placed.length < perStartCount) {
               const placedIds = placed.map(x => x.employeeId);
               const hasRookieLocal = placedIds.some(id => getEmp(id)?.isRookie);
@@ -578,6 +461,7 @@ function buildAutofillAssignments() {
       });
     });
   });
+
   return next;
 }
 
