@@ -776,60 +776,90 @@ function RoosterCellHeader({ role, count, onRemoveEntry }) {
   )
 }
 
-function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75, addAssignment, removeAssignment, onChangeStart, onAddStart, onRemoveStart, onRemoveEntry, needsOpenShift, needsCloseShift }) {
+function Cell({
+  dayKey, shiftKey, entryIndex, entry, openPicker, employees, assignments, p75,
+  addAssignment, removeAssignment, onChangeStart, onAddStart, onRemoveStart, onRemoveEntry,
+  needsOpenShift, needsCloseShift
+}) {
   const role = entry.role;
-  const [editKey,setEditKey] = React.useState(null);
-  const [addingStart,setAddingStart] = React.useState(false);
-  const [newStart,setNewStart] = React.useState("10:00");
-  const times = React.useMemo(()=>halfHours(),[]);
+  const [editKey, setEditKey] = React.useState(null);
+  const [addingStart, setAddingStart] = React.useState(false);
+  const [newStart, setNewStart] = React.useState("10:00");
+  const times = React.useMemo(() => halfHours(), []);
 
   return (
-    <div style={{ border:"1px solid #e5e7eb", borderRadius:12, padding:8, background:"white" }}>
-      <RoosterCellHeader role={role} count={entry.count} onRemoveEntry={()=>onRemoveEntry(dayKey, shiftKey, entryIndex)} />
-      <div style={{ display:"grid", gap:6 }}>
-        {entry.starts.map((start,i)=>{
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, background: "white" }}>
+      <RoosterCellHeader role={role} count={entry.count} onRemoveEntry={() => onRemoveEntry(dayKey, shiftKey, entryIndex)} />
+      <div style={{ display: "grid", gap: 6 }}>
+        {entry.starts.map((start, i) => {
           const k = `${dayKey}:${shiftKey}:${role}:${start}`;
-          const list = assignments[k]||[];
+          const list = assignments[k] || [];
           const spots = (entry.starts.length > 1) ? 1 : entry.count;
           const filled = list.length;
 
+          // Shift-breed status (niet per start)
           const openerAnywhere = hasOpenerInShift(assignments, dayKey, shiftKey, employees);
           const closerAnywhere = hasCloserInShift(assignments, dayKey, shiftKey, employees);
+          const mentorAnywhere = hasMentorInShift(assignments, dayKey, shiftKey, employees);
+
+          // Binnen dit startblok: rookie aanwezig? en is er pairwise 'liever niet samen'?
+          const currentIds = list.map(a => a.employeeId);
+          const hasRookieHere = currentIds.some(id => employees.find(e => e.id === id)?.isRookie);
+          let avoidInGroup = false;
+          for (let a = 0; a < currentIds.length; a++) {
+            for (let b = a + 1; b < currentIds.length; b++) {
+              if (hasAvoidWith(currentIds[a], [currentIds[b]], employees)) { avoidInGroup = true; break; }
+            }
+            if (avoidInGroup) break;
+          }
 
           return (
-            <div key={i} style={{ border:"1px solid #e5e7eb", borderRadius:10, padding:8 }}>
-              <div style={{ fontSize:11, color:"#6b7280", marginBottom:6, display:"flex", alignItems:"center", gap:8 }}>
+            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
                 <span>Start {start} · {filled}/{spots}</span>
 
-                {/* alleen waarschuwingen (geen OK-badges) en shift-breed */}
+                {/* Shift-brede, zachte waarschuwingen */}
                 {needsOpenShift  && !openerAnywhere && <span style={pill(false)}>Open-medewerker ontbreekt</span>}
                 {needsCloseShift && !closerAnywhere && <span style={pill(false)}>Sluit-medewerker ontbreekt</span>}
 
-                <button style={{ marginLeft:"auto", ...btnSm() }} onClick={()=>setEditKey(editKey===k? null : k)}>🕒 Tijd</button>
-                {editKey===k && (
-                  <select value={start} onChange={(e)=>{ const ns=e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns); }} style={{ fontSize:12, padding:"4px 8px", borderRadius:8, border:"1px solid #e5e7eb" }}>
-                    {times.map(t=>(<option key={t} value={t}>{t}</option>))}
+                {/* Koppelregels & mentor (mentor telt shift-breed; Standby niet) */}
+                {hasRookieHere && !mentorAnywhere && <span style={pill(false)}>Mentor ontbreekt</span>}
+                {avoidInGroup && <span style={pill(false)}>Conflict: liever niet samen</span>}
+
+                <button
+                  style={{ marginLeft: "auto", ...btnSm() }}
+                  onClick={() => setEditKey(editKey === k ? null : k)}
+                >
+                  🕒 Tijd
+                </button>
+                {editKey === k && (
+                  <select
+                    value={start}
+                    onChange={(e) => { const ns = e.target.value; setEditKey(null); onChangeStart(dayKey, shiftKey, entryIndex, role, start, ns); }}
+                    style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
+                  >
+                    {times.map(t => (<option key={t} value={t}>{t}</option>))}
                   </select>
                 )}
-                <button title="Verwijder start" style={btnSm()} onClick={()=>onRemoveStart(dayKey, shiftKey, entryIndex, start)}>🗑</button>
+                <button title="Verwijder start" style={btnSm()} onClick={() => onRemoveStart(dayKey, shiftKey, entryIndex, start)}>🗑</button>
               </div>
 
-              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                {list.map((a, idx)=>{
-                  const emp = employees.find(e=>e.id===a.employeeId);
-                  if(!emp) return null;
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {list.map((a, idx) => {
+                  const emp = employees.find(e => e.id === a.employeeId);
+                  if (!emp) return null;
                   return (
-                    <div key={idx} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 8px", borderRadius:8, background:"white", border:"1px solid #e5e7eb", boxShadow:"0 1px 1px rgba(0,0,0,0.04)" }}>
-                      <span style={{ fontSize:11, fontWeight:600 }}>{emp.name}</span>
-                      {a.standby && <span style={tinyTag("#e5e7eb","#374151")}>Standby</span>}
-                      {emp.wage >= p75 && !a.standby && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
-                      <span style={{ fontSize:10, color:"#6b7280" }}>€{emp.wage.toFixed(2)}/u</span>
-                      <button style={btnTiny()} onClick={()=>removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}>X</button>
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 8, background: "white", border: "1px solid #e5e7eb", boxShadow: "0 1px 1px rgba(0,0,0,0.04)" }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{emp.name}</span>
+                      {a.standby && <span style={tinyTag("#e5e7eb", "#374151")}>Standby</span>}
+                      {emp.wage >= p75 && !a.standby && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}
+                      <span style={{ fontSize: 10, color: "#6b7280" }}>€{emp.wage.toFixed(2)}/u</span>
+                      <button style={btnTiny()} onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}>X</button>
                     </div>
                   );
                 })}
-                {Array.from({length: Math.max(spots - filled, 0)}).map((_, j)=>(
-                  <button key={j} style={btnDashed()} onClick={()=>openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
+                {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
+                  <button key={j} style={btnDashed()} onClick={() => openPicker({ dayKey, shiftKey, role, start })}>+ Voeg toe</button>
                 ))}
               </div>
             </div>
@@ -837,16 +867,16 @@ function Cell({ dayKey, shiftKey, entryIndex, entry, openPicker, employees, assi
         })}
       </div>
 
-      <div style={{ marginTop:6 }}>
+      <div style={{ marginTop: 6 }}>
         {!addingStart ? (
-          <button style={btnSm()} onClick={()=>setAddingStart(true)}>+ Start toevoegen</button>
+          <button style={btnSm()} onClick={() => setAddingStart(true)}>+ Start toevoegen</button>
         ) : (
-          <div style={{ display:"flex", gap:8, alignItems:"center", marginTop:6 }}>
-            <select value={newStart} onChange={e=>setNewStart(e.target.value)} style={{ padding:"6px 8px", borderRadius:8, border:"1px solid #e5e7eb" }}>
-              {times.map(t=><option key={t} value={t}>{t}</option>)}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+            <select value={newStart} onChange={e => setNewStart(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+              {times.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <button style={btnSm()} onClick={()=>{ onAddStart(dayKey, shiftKey, entryIndex, newStart); setAddingStart(false); }}>Opslaan</button>
-            <button style={btnSm()} onClick={()=>setAddingStart(false)}>Annuleer</button>
+            <button style={btnSm()} onClick={() => { onAddStart(dayKey, shiftKey, entryIndex, newStart); setAddingStart(false); }}>Opslaan</button>
+            <button style={btnSm()} onClick={() => setAddingStart(false)}>Annuleer</button>
           </div>
         )}
       </div>
