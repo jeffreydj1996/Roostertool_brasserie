@@ -979,6 +979,139 @@ function RoosterCellHeader({ role, count, onRemoveEntry }) {
   )
 }
 
+function Rooster({
+  needs,
+  days,
+  employees,
+  assignments,
+  warningsFor,
+  shiftCost,
+  dayCost,
+  weekCost,
+  p75,
+  setPicker,
+  addAssignment,
+  removeAssignment,
+  onNeedsChange,
+  onChangeStart,
+  autofill,
+}) {
+  const toneFor = (shiftKey) => {
+    if (shiftKey === "lunch") return { head:"bg-blue-50 text-blue-900", body:"border-blue-100" };
+    if (shiftKey === "diner") return { head:"bg-amber-50 text-amber-900", body:"border-amber-100" };
+    return { head:"bg-slate-50 text-slate-900", body:"border-slate-100" }; // standby
+  };
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+      <div className="xl:col-span-3 space-y-4">
+        <div className="rounded-2xl border bg-white/80 p-3 flex items-center justify-between sticky top-16 z-10 backdrop-blur">
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1.5 rounded-lg border hover:bg-gray-50" onClick={autofill}>
+              Autofill (week)
+            </button>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+              P75: €{p75.toFixed(2)}
+            </span>
+          </div>
+          <div className="text-sm">
+            Weekkosten: <b>€{weekCost.toFixed(2)}</b>
+          </div>
+        </div>
+
+        {days.map((d) => {
+          const entriesByShift = needs[d.key] || {};
+          const shiftOrder = ["lunch", "diner", "standby"].filter((s) => entriesByShift[s]?.length);
+          const dayWarnings = warningsFor(d.key, entriesByShift, assignments, employees);
+
+          return (
+            <section key={d.key} className="rounded-2xl border bg-white/70 overflow-hidden">
+              {/* Dag-header */}
+              <header className="px-4 py-3 bg-white/80 border-b flex items-center justify-between">
+                <div className="flex items-baseline gap-3">
+                  <h3 className="text-lg font-semibold">{d.label}</h3>
+                  <span className="text-xs text-gray-500">{d.rangeLabel}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {dayWarnings.missingOpen && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700">Open ontbreekt</span>
+                  )}
+                  {dayWarnings.missingClose && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700">Sluit ontbreekt</span>
+                  )}
+                  <span className="text-sm text-gray-700">
+                    Dagkosten: <b>€{dayCost(d.key).toFixed(2)}</b>
+                  </span>
+                </div>
+              </header>
+
+              {/* Shifts */}
+              <div className="divide-y">
+                {shiftOrder.map((shiftKey) => {
+                  const tone = toneFor(shiftKey);
+                  const entries = entriesByShift[shiftKey] || [];
+
+                  return (
+                    <div key={shiftKey} className="p-3">
+                      {/* Shift header + Dienst toevoegen */}
+                      <div className={`mb-2 px-3 py-2 rounded-xl border ${tone.body} ${tone.head} flex items-center justify-between`}>
+                        <div className="font-medium capitalize">{shiftKey}</div>
+                        <button
+                          className="text-xs px-2 py-1 rounded-md bg-white/70 border hover:bg-white"
+                          onClick={() => {
+                            // 1 voorbeeld-dienst; tijd kun je zo aanpassen via “Tijd”
+                            const template = { role: "FOH", count: 1, starts: ["17:00"] };
+                            onNeedsChange({ ...needs[d.key], [shiftKey]: [...entries, template] });
+                          }}
+                        >
+                          + Dienst toevoegen
+                        </button>
+                      </div>
+
+                      {/* Dienst-cellen */}
+                      <div className="grid lg:grid-cols-2 gap-2">
+                        {entries.map((entry, idx) => (
+                          <Cell
+                            key={idx}
+                            dayKey={d.key}
+                            shiftKey={shiftKey}
+                            entryIndex={idx}
+                            entry={entry}
+                            openPicker={setPicker}
+                            employees={employees}
+                            assignments={assignments}
+                            p75={p75}
+                            addAssignment={addAssignment}
+                            removeAssignment={removeAssignment}
+                            onChangeStart={onChangeStart}
+                            onRemoveEntry={()=>{
+                              const nextList = entries.slice();
+                              nextList.splice(idx,1);
+                              onNeedsChange({ ...needs[d.key], [shiftKey]: nextList });
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Geen entries */}
+                      {entries.length === 0 && (
+                        <div className="text-xs text-gray-500 px-1 py-2">Nog geen diensten in dit dagdeel.</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {/* rechterkolom bewust leeg voor focus */}
+      <div className="xl:col-span-1" />
+    </div>
+  );
+}
+
 function Cell({
   dayKey,
   shiftKey,
@@ -991,6 +1124,7 @@ function Cell({
   addAssignment,
   removeAssignment,
   onChangeStart,
+  onRemoveEntry, // nieuw: '-' knop voor hele dienst
 }) {
   const role = entry.role;
   const [editKey, setEditKey] = React.useState(null);
@@ -998,23 +1132,27 @@ function Cell({
   const allHalfHours = React.useMemo(() => {
     const times = [];
     const add = (h, m) => times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    for (let h = 6; h <= 24; h++) {
-      add(h % 24, 0);
-      add(h % 24, 30);
-    }
-    add(1, 0);
-    add(1, 30); // tot 01:30
+    for (let h = 6; h <= 24; h++) { add(h % 24, 0); add(h % 24, 30); }
+    add(1, 0); add(1, 30); // tot 01:30
     return times;
   }, []);
 
   return (
-    <div className="border rounded-xl p-2 bg-white/70">
-      <div className="text-xs font-medium mb-1 flex items-center gap-2">
-        <span className="px-2 py-0.5 rounded-full bg-gray-100">{role}</span>
-        <span className="text-gray-500">{entry.count}×</span>
+    <div className="rounded-xl border border-gray-200 bg-white">
+      {/* rol + aantal + '-' dienst verwijderen */}
+      <div className="px-3 pt-2 flex items-center gap-2">
+        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100">{role}</span>
+        <span className="text-[11px] text-gray-500">{entry.count}×</span>
+        <button
+          className="ml-auto text-[10px] px-2 py-0.5 rounded-md border hover:bg-gray-50"
+          onClick={onRemoveEntry}
+          title="Dienst verwijderen"
+        >
+          - Dienst verwijderen
+        </button>
       </div>
 
-      <div className="space-y-1">
+      <div className="px-2 pb-2 space-y-2">
         {entry.starts.map((start, i) => {
           const key = `${dayKey}:${shiftKey}:${role}:${start}`;
           const list = assignments[key] || [];
@@ -1033,36 +1171,29 @@ function Cell({
           });
 
           return (
-            <div key={i} className="rounded-lg border p-1">
-              <div className="text-[11px] text-gray-600 mb-1 flex items-center gap-2">
-                <span>
-                  Start {start} · {filled}/{spots}
-                </span>
+            <div key={i} className="rounded-lg border border-gray-100 bg-white/90 px-2 py-2">
+              {/* Starttijd prominent + statuschips + 'Tijd' wisselen */}
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-sm font-semibold tabular-nums">{start}</span>
+                <span className="text-[11px] text-gray-500">· {filled}/{spots}</span>
 
                 {needOpen && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      hasOpener ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                    }`}
-                  >
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${hasOpener ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                     {hasOpener ? "Open OK" : "Open ontbreekt"}
                   </span>
                 )}
                 {needClose && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      hasCloser ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                    }`}
-                  >
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${hasCloser ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                     {hasCloser ? "Sluit OK" : "Sluit ontbreekt"}
                   </span>
                 )}
 
                 <button
-                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded border"
+                  className="ml-auto text-[10px] px-2 py-0.5 rounded-md border hover:bg-gray-50"
                   onClick={() => setEditKey(editKey === key ? null : key)}
+                  title="Wijzig starttijd"
                 >
-                  🕒 Tijd
+                  Tijd
                 </button>
                 {editKey === key && (
                   <select
@@ -1075,26 +1206,26 @@ function Cell({
                     }}
                   >
                     {allHalfHours.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-1">
+              {/* Toewijzingen: chips; “Duur” met rode gloed; 'X' om te verwijderen */}
+              <div className="flex flex-wrap gap-1.5">
                 {list.map((a, idx) => {
                   const emp = employees.find((e) => e.id === a.employeeId);
                   if (!emp) return null;
-
                   const hours = empWeekHours(assignments, emp.id);
                   const overMax = (emp.maxHoursWeek || 0) > 0 && hours > emp.maxHoursWeek;
+
+                  const duurGlow = !a.standby && emp.wage >= p75 ? "ring-1 ring-rose-200 bg-rose-50" : "bg-white";
 
                   return (
                     <div
                       key={idx}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md border bg-white"
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-full border border-gray-200 ${duurGlow}`}
                     >
                       <span className="text-[11px] font-medium">{emp.name}</span>
                       {a.standby && (
@@ -1118,11 +1249,13 @@ function Cell({
                   );
                 })}
 
+                {/* Vrije plek */}
                 {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
                   <button
                     key={j}
-                    className="text-[11px] px-2 py-1 rounded-md border border-dashed hover:border-solid hover:bg-gray-50"
+                    className="text-[11px] px-2 py-1 rounded-full border border-dashed hover:border-solid hover:bg-gray-50"
                     onClick={() => openPicker({ dayKey, shiftKey, role, start })}
+                    title="Medewerker toevoegen"
                   >
                     + Voeg toe
                   </button>
@@ -1132,6 +1265,8 @@ function Cell({
           );
         })}
       </div>
+
+      <div className="px-3 pb-2" />
     </div>
   );
 }
