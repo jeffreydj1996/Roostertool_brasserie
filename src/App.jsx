@@ -25,9 +25,174 @@ const defaultNeeds = {
 };
 
 const demoEmployees = [
-  { id: "e1", name: "Sanne", wage: 18.5, skills: { FOH: 5, Host: 4, Bar: 4, Runner: 3, Allround: 5 }, canOpen: true, canClose: true, prefs: ["sluit"], allowedStandby: true, isMentor: true, isRookie: false, preferWith: [], avoidWith: [] },
-  { id: "e2", name: "Ahmed", wage: 15.0, skills: { FOH: 4, Host: 3, Bar: 2, Runner: 4, Allround: 4 }, canOpen: true, canClose: false, prefs: ["open"], allowedStandby: true, isMentor: false, isRookie: true, preferWith: ["e1"], avoidWith: [] },
-  { id: "e3", name: "Lena", wage: 22.0, skills: { FOH: 5, Host: 5, Bar: 3, Runner: 3, Allround: 4 }, canOpen: true, canClose: true, prefs: ["tussen"], allowedStandby: false, isMentor: true, isRookie: false, preferWith: [], avoidWith: [] },
+  {
+    id: "e1",
+    name: "Sanne",
+    wage: 18.5,
+    skills: { FOH: 5, Host: 4, Bar: 4, Runner: 3, Allround: 5 },
+    canOpen: true,
+    canClose: true,
+    prefs: ["sluit"],
+    allowedStandby: true,
+    isMentor: true,
+    isRookie: false,
+    preferWith: ["e2", "e5"],
+    avoidWith: [],
+    contractType: "vaste_uren",
+    minHoursWeek: 28,
+    maxHoursWeek: 35,
+    maxShiftsWeek: 5,
+    maxConsecutiveDays: 5,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e2",
+    name: "Ahmed",
+    wage: 15.0,
+    skills: { FOH: 4, Host: 3, Bar: 2, Runner: 4, Allround: 4 },
+    canOpen: true,
+    canClose: false,
+    prefs: ["open"],
+    allowedStandby: true,
+    isMentor: false,
+    isRookie: true,
+    preferWith: ["e1"],
+    avoidWith: [],
+    contractType: "0-uren",
+    minHoursWeek: 0,
+    maxHoursWeek: 25,
+    maxShiftsWeek: 4,
+    maxConsecutiveDays: 4,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e3",
+    name: "Lena",
+    wage: 22.0,
+    skills: { FOH: 5, Host: 5, Bar: 3, Runner: 3, Allround: 4 },
+    canOpen: true,
+    canClose: true,
+    prefs: ["tussen"],
+    allowedStandby: false,
+    isMentor: true,
+    isRookie: false,
+    preferWith: ["e5"],
+    avoidWith: [],
+    contractType: "vaste_uren",
+    minHoursWeek: 21,
+    maxHoursWeek: 32,
+    maxShiftsWeek: 5,
+    maxConsecutiveDays: 5,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e4",
+    name: "Boris",
+    wage: 16.0,
+    skills: { FOH: 3, Host: 2, Bar: 5, Runner: 3, Allround: 3 },
+    canOpen: false,
+    canClose: true,
+    prefs: ["sluit"],
+    allowedStandby: true,
+    isMentor: false,
+    isRookie: false,
+    preferWith: [],
+    avoidWith: ["e7"],
+    contractType: "0-uren",
+    minHoursWeek: 0,
+    maxHoursWeek: 20,
+    maxShiftsWeek: 4,
+    maxConsecutiveDays: 4,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e5",
+    name: "Noor",
+    wage: 19.0,
+    skills: { FOH: 5, Host: 4, Bar: 3, Runner: 3, Allround: 4 },
+    canOpen: true,
+    canClose: false,
+    prefs: ["open", "tussen"],
+    allowedStandby: true,
+    isMentor: false,
+    isRookie: false,
+    preferWith: ["e3"],
+    avoidWith: [],
+    contractType: "vaste_uren",
+    minHoursWeek: 24,
+    maxHoursWeek: 32,
+    maxShiftsWeek: 5,
+    maxConsecutiveDays: 5,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e6",
+    name: "Kim",
+    wage: 14.0,
+    skills: { FOH: 3, Host: 3, Bar: 2, Runner: 5, Allround: 3 },
+    canOpen: false,
+    canClose: false,
+    prefs: ["tussen"],
+    allowedStandby: true,
+    isMentor: false,
+    isRookie: false,
+    preferWith: [],
+    avoidWith: [],
+    contractType: "0-uren",
+    minHoursWeek: 0,
+    maxHoursWeek: 30,
+    maxShiftsWeek: 5,
+    maxConsecutiveDays: 5,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e7",
+    name: "Tom",
+    wage: 17.5,
+    skills: { FOH: 4, Host: 3, Bar: 4, Runner: 3, Allround: 3 },
+    canOpen: false,
+    canClose: true,
+    prefs: ["sluit"],
+    allowedStandby: true,
+    isMentor: false,
+    isRookie: false,
+    preferWith: [],
+    avoidWith: ["e4"],
+    contractType: "0-uren",
+    minHoursWeek: 0,
+    maxHoursWeek: 18,
+    maxShiftsWeek: 3,
+    maxConsecutiveDays: 4,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
+  {
+    id: "e8",
+    name: "Eva",
+    wage: 13.5,
+    skills: { FOH: 3, Host: 4, Bar: 2, Runner: 4, Allround: 3 },
+    canOpen: true,
+    canClose: false,
+    prefs: ["open"],
+    allowedStandby: false,
+    isMentor: false,
+    isRookie: true,
+    preferWith: ["e1", "e3"],
+    avoidWith: [],
+    contractType: "0-uren",
+    minHoursWeek: 0,
+    maxHoursWeek: 16,
+    maxShiftsWeek: 3,
+    maxConsecutiveDays: 3,
+    minRestHours: 11,
+    maxCloseOpenPerWeek: 1,
+  },
 ];
 
 function pad2(n) { return n < 10 ? `0${n}` : String(n) }
@@ -57,6 +222,7 @@ export default function App() {
   const [availabilityByWeek, setAvailabilityByWeek] = useState({})
   const [weekKey, setWeekKey] = useState(currentWeekKey())
   const [picker, setPicker] = useState(null)
+  const [showRejectedCandidates, setShowRejectedCandidates] = React.useState(false);
   const [editEmp, setEditEmp] = useState(null)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selfTest, setSelfTest] = useState({ passed: 0, failed: [] })
@@ -85,7 +251,8 @@ export default function App() {
 function addAssignment(dayKey, shiftKey, role, start, employeeId){
   setAssignmentsByWeek(prev=>{
     const prevWeek = prev[weekKey] || {};
-    // max 1 dienst per dag (incl. Standby)
+
+    // 1 dienst per dag (standby telt als dienst voor deze regel)
     const conflict = Object.keys(prevWeek).some(k=>{
       const [d] = k.split(':');
       if(d!==dayKey) return false;
@@ -98,6 +265,10 @@ function addAssignment(dayKey, shiftKey, role, start, employeeId){
     if(role==='Standby' && !emp.allowedStandby) return prev;
     if(role!=='Standby' && ((emp.skills?.[role]??0) < 3)) return prev;
 
+    // Contractregels
+    const check = wouldViolateContractOnAdd(emp, dayKey, shiftKey, role, start, prevWeek);
+    if(!check.ok) return prev;
+
     const key = `${dayKey}:${shiftKey}:${role}:${start}`;
     const list = prevWeek[key] || [];
     if(list.some(a=>a.employeeId===employeeId)) return prev;
@@ -106,7 +277,6 @@ function addAssignment(dayKey, shiftKey, role, start, employeeId){
     return { ...prev, [weekKey]: nextWeek };
   });
 }
-
 
   function removeAssignment(dayKey, shiftKey, role, start, employeeId) {
     setAssignmentsByWeek(prev => {
@@ -244,18 +414,145 @@ function buildAutofillAssignments() {
                 !byDay[d.key].has(px.id) &&
                 !byDayStandby[d.key].has(px.id) &&
                 !placed.some(p => p.employeeId === px.id) &&
+                (entfunction buildAutofillAssignments() {
+  const next = {};
+  const byDay = {};
+  const byDayStandby = {};
+  days.forEach(d => { byDay[d.key] = new Set(); byDayStandby[d.key] = new Set(); });
+
+  const getEmp = (id) => employees.find(e => e.id === id);
+
+  days.forEach(d => {
+    const dayNeeds = needs[d.key] || {};
+
+    const shiftKeys = Object.keys(dayNeeds).sort((a,b)=>{
+      if(a==='standby' && b!=='standby') return 1;
+      if(b==='standby' && a!=='standby') return -1;
+      return 0;
+    });
+
+    shiftKeys.forEach(shiftKey => {
+      const entries = dayNeeds[shiftKey] || [];
+
+      const needsOpenShift  = entries.some(en => (en.starts||[]).some(s => requiresOpen(s)));
+      const needsCloseShift = entries.some(en => (en.starts||[]).some(s => requiresClose(s)));
+
+      entries.forEach(entry => {
+        const perStartCount = (entry.starts.length > 1) ? 1 : entry.count;
+
+        entry.starts.forEach(start => {
+          const key = `${d.key}:${shiftKey}:${entry.role}:${start}`;
+
+          const mentorInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.isMentor);
+          });
+          const openerInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.canOpen);
+          });
+          const closerInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.canClose);
+          });
+
+          const candidates = employees
+            .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : ((e.skills?.[entry.role] ?? 0) >= 3))
+            .filter(e => {
+              // 1 dienst per dag
+              const alreadyToday = Object.keys(next).some(k=>{
+                const [dd] = k.split(':'); if(dd!==d.key) return false;
+                return (next[k]||[]).some(a=>a.employeeId===e.id);
+              });
+              if(alreadyToday) return false;
+              // contractregels (hypothetisch toevoegen)
+              const chk = wouldViolateContractOnAdd(e, d.key, shiftKey, entry.role, start, next);
+              return chk.ok;
+            })
+            .sort((a, b) => {
+              // prioriteit: als shift opener/closer mist, kies iemand die kan openen/sluiten
+              if (needsOpenShift && !openerInShiftAlready && (a.canOpen !== b.canOpen)) return a.canOpen ? -1 : 1;
+              if (needsCloseShift && !closerInShiftAlready && (a.canClose !== b.canClose)) return a.canClose ? -1 : 1;
+
+              // daarna: wie zit nog onder zijn min-uren → die eerst
+              const aH = empWeekHours(next, a.id), bH = empWeekHours(next, b.id);
+              const aUnder = (a.minHoursWeek||0) > 0 && aH < a.minHoursWeek;
+              const bUnder = (b.minHoursWeek||0) > 0 && bH < b.minHoursWeek;
+              if (aUnder !== bUnder) return aUnder ? -1 : 1;
+
+              // voorkeurdiensten
+              const p = prefFrom(shiftKey, start);
+              const ap = !!(p && (a.prefs || []).includes(p));
+              const bp = !!(p && (b.prefs || []).includes(p));
+              if (ap !== bp) return ap ? -1 : 1;
+
+              // skill voor de rol
+              if (entry.role !== 'Standby') {
+                const sa = a.skills?.[entry.role] ?? 0, sb = b.skills?.[entry.role] ?? 0;
+                if (sa !== sb) return sb - sa;
+              }
+
+              // goedkoop eerst
+              return a.wage - b.wage;
+            });
+
+          let placed = [];
+          let dureCount = 0;
+          const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1;
+
+          for (const c of candidates) {
+            if (placed.length >= perStartCount) break;
+
+            const hasShift = Object.keys(next).some(k=>{
+              const [dd] = k.split(':'); if(dd!==d.key) return false;
+              return (next[k]||[]).some(a=>a.employeeId===c.id);
+            });
+            const hasSB = Object.keys(next).some(k=>{
+              const [dd,,role2] = k.split(':'); if(dd!==d.key || role2!=='Standby') return false;
+              return (next[k]||[]).some(a=>a.employeeId===c.id);
+            });
+
+            if (entry.role === 'Standby') {
+              if (hasShift) continue;
+              if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
+              placed.push({ employeeId: c.id, standby: true });
+              continue;
+            }
+
+            if (hasShift || hasSB) continue;
+
+            if (c.wage >= p75 && dureCount >= limitDure) continue;
+
+            if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
+
+            placed.push({ employeeId: c.id, standby: false });
+            if (c.wage >= p75) dureCount++;
+
+            // zachte preferWith: probeer maatje mee te nemen
+            if (placed.length < perStartCount) {
+              const preferSet = new Set(c.preferWith || []);
+              const prefCand = candidates.find(px =>
+                px.id !== c.id &&
+                !Object.keys(next).some(k=>{
+                  const [dd] = k.split(':'); if(dd!==d.key) return false;
+                  return (next[k]||[]).some(a=>a.employeeId===px.id);
+                }) &&
+                !placed.some(p => p.employeeId === px.id) &&
                 (entry.role === 'Standby' ? !!px.allowedStandby : ((px.skills?.[entry.role] ?? 0) >= 3)) &&
                 !hasAvoidWith(px.id, placed.map(x => x.employeeId), employees) &&
-                (preferSet.has(px.id) || (px.preferWith || []).includes(c.id))
+                (preferSet.has(px.id) || (px.preferWith || []).includes(c.id)) &&
+                wouldViolateContractOnAdd(px, d.key, shiftKey, entry.role, start, next).ok
               );
               if (prefCand && placed.length < perStartCount) {
                 placed.push({ employeeId: prefCand.id, standby: entry.role === 'Standby' });
-                byDay[d.key].add(prefCand.id);
                 if (prefCand.wage >= p75 && entry.role !== 'Standby') dureCount++;
               }
             }
 
-            // Rookie zonder mentor? alleen toevoegen als er nog geen mentor shift-breed staat
+            // Rookie zonder mentor en nog geen mentor ergens in de shift?
             if (entry.role !== 'Standby' && placed.length < perStartCount) {
               const placedIds = placed.map(x => x.employeeId);
               const hasRookieLocal = placedIds.some(id => getEmp(id)?.isRookie);
@@ -264,14 +561,12 @@ function buildAutofillAssignments() {
               if (hasRookieLocal && !mentorShift) {
                 const mentor = candidates.find(mx =>
                   mx.isMentor &&
-                  !byDay[d.key].has(mx.id) &&
-                  !byDayStandby[d.key].has(mx.id) &&
                   !placed.some(p => p.employeeId === mx.id) &&
+                  wouldViolateContractOnAdd(mx, d.key, shiftKey, entry.role, start, next).ok &&
                   !hasAvoidWith(mx.id, placed.map(x => x.employeeId), employees)
                 );
                 if (mentor) {
                   placed.push({ employeeId: mentor.id, standby: false });
-                  byDay[d.key].add(mentor.id);
                   if (mentor.wage >= p75) dureCount++;
                 }
               }
@@ -949,117 +1244,197 @@ function ShiftWarningsBadge({ info }) {
   return <span style={style}>{info.dure}/{info.limit}</span>
 }
 
-function AssignModal({ onClose, onChoose, employees, assignments, dayKey, shiftKey, role, start, p75, availability }) {
-  const [q, setQ] = useState('')
-  const isStandby = role === 'Standby'
+function AssignModal({ picker, onClose, employees, assignments, addAssignment, p75, showRejectedCandidates }) {
+  if (!picker) return null;
+  const { dayKey, shiftKey, role, start } = picker;
+  const [q, setQ] = React.useState("");
 
-  function isAvail(empId) {
-    const rec = availability[empId]?.[dayKey]
-    if (!rec || rec.type === 'all') return true
-    if (rec.type === 'none') return false
-    const startMin = timeToMin(start), endMin = startMin + 7 * 60
-    const [fh, fm] = (rec.from || '00:00').split(':').map(Number)
-    const [th, tm] = (rec.to || '23:59').split(':').map(Number)
-    const a = fh * 60 + fm, b = th * 60 + tm
-    return startMin < b && a < endMin
+  const key = `${dayKey}:${shiftKey}:${role}:${start}`;
+  const groupIds = (assignments[key] || []).map(a => a.employeeId);
+
+  function hasAnyAssignmentInDay(empId){
+    return Object.keys(assignments).some(k=>{
+      const [d] = k.split(':'); if(d!==dayKey) return false;
+      return (assignments[k]||[]).some(a=>a.employeeId===empId);
+    });
   }
 
-  function hasAnyAssignmentInDay(empId) {
-    return Object.keys(assignments).some(k => {
-      const [d] = k.split(':'); if (d !== dayKey) return false
-      return (assignments[k] || []).some(a => a.employeeId === empId)
-    })
-  }
+  const openerAnywhere = hasOpenerInShift(assignments, dayKey, shiftKey, employees);
+  const closerAnywhere = hasCloserInShift(assignments, dayKey, shiftKey, employees);
 
-  const groupIds = new Set(Object.entries(assignments).flatMap(([k, list]) => {
-    const [d, , r, t] = k.split(':'); if (d !== dayKey || t !== start || r === 'Standby') return []
-    return list.map(a => a.employeeId)
-  }))
+  const rows = employees.map(e => {
+    let eligible = true;
+    let reason = "";
 
-const candidates = employees.map(e => {
-  let eligible = true;
+    if (!isAvailable(e.id, dayKey, start)) { eligible = false; reason = "Niet beschikbaar"; }
 
-  // beschikbaarheid
-  if (!isAvail(e.id)) eligible = false;
+    if (eligible && hasAnyAssignmentInDay(e.id)) { eligible = false; reason = "Heeft al een dienst vandaag"; }
 
-  // max 1 dienst per dag
-  if (hasAnyAssignmentInDay(e.id)) eligible = false;
+    if (eligible) {
+      if (role === "Standby") {
+        if (!e.allowedStandby) { eligible = false; reason = "Geen standby-recht"; }
+      } else {
+        if ((e.skills?.[role] ?? 0) < 3) { eligible = false; reason = "Skill < 3"; }
+      }
+    }
 
-  // standby alleen als toegestaan
-  if (isStandby && !e.allowedStandby) eligible = false;
+    if (eligible) {
+      const avoid = new Set(e.avoidWith || []);
+      for (const gid of groupIds) { if (avoid.has(gid)) { eligible = false; reason = "Liever niet samen"; break; } }
+    }
 
-  // rol-skill >=3 (niet voor standby)
-  if (!isStandby && ((e.skills?.[role] ?? 0) < 3)) eligible = false;
+    if (eligible) {
+      const chk = wouldViolateContractOnAdd(e, dayKey, shiftKey, role, start, assignments);
+      if (!chk.ok) { eligible = false; reason = `Contract: ${chk.reason}`; }
+    }
 
-  // koppelregels: liever-niet samen
-  const avoid = new Set(e.avoidWith || []);
-  for (const gid of groupIds){ if (avoid.has(gid)) { eligible=false; break; } }
+    const p = prefFrom(shiftKey, start);
+    const prefers = !!(p && (e.prefs || []).includes(p));
+    const preferSet = new Set(e.preferWith || []);
+    let preferScore = 0; groupIds.forEach(id => { if (preferSet.has(id)) preferScore++; });
 
-  // zoekfilter
-  if (q && !e.name.toLowerCase().includes(q.toLowerCase())) eligible = false;
+    const wantOpen  = requiresOpen(start)  && !openerAnywhere;
+    const wantClose = requiresClose(start) && !closerAnywhere;
+    const openBoost = wantOpen  && e.canOpen  ? 1 : 0;
+    const closeBoost= wantClose && e.canClose ? 1 : 0;
+    const skill = role === "Standby" ? 0 : (e.skills?.[role] ?? 0);
 
-  const p = prefFrom(shiftKey, start);
-  const prefers = !!(p && (e.prefs || []).includes(p));
-  const prefer = new Set(e.preferWith || []);
-  let preferScore = 0; groupIds.forEach(id => { if (prefer.has(id)) preferScore++; });
+    return { e, eligible, reason, prefers, preferScore, openBoost, closeBoost, skill };
+  });
 
-  return { e, eligible, prefers, preferScore };
-}).filter(r => r.eligible).sort((a,b)=>{
-  if (a.prefers !== b.prefers) return a.prefers ? -1 : 1;
-  if (a.preferScore !== b.preferScore) return b.preferScore - a.preferScore;
-  if (role !== 'Standby') {
-    const sa = a.e.skills?.[role] ?? 0, sb = b.e.skills?.[role] ?? 0;
-    if (sa !== sb) return sb - sa;
-  }
-  return a.e.wage - b.e.wage;
-});
+  const nameMatch = r => !q || r.e.name.toLowerCase().includes(q.toLowerCase());
+
+  const eligible = rows
+    .filter(r => r.eligible && nameMatch(r))
+    .sort((a, b) => {
+      if (a.openBoost !== b.openBoost) return b.openBoost - a.openBoost;
+      if (a.closeBoost !== b.closeBoost) return b.closeBoost - a.closeBoost;
+      if (a.prefers !== b.prefers) return a.prefers ? -1 : 1;
+      if (a.preferScore !== b.preferScore) return b.preferScore - a.preferScore;
+      if (a.skill !== b.skill) return b.skill - a.skill;
+      if ((a.e.wage >= p75) !== (b.e.wage >= p75)) return a.e.wage >= p75 ? 1 : -1;
+      return a.e.wage - b.e.wage;
+    });
+
+  const rejected = showRejectedCandidates
+    ? rows.filter(r => !r.eligible && nameMatch(r))
+        .sort((a,b)=>{
+          if ((a.e.wage >= p75) !== (b.e.wage >= p75)) return a.e.wage >= p75 ? 1 : -1;
+          return a.e.wage - b.e.wage;
+        })
+    : [];
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", width: "100%", maxWidth: 640 }}>
-        <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <b>Kies medewerker — {dayKey.toUpperCase()} · {shiftKey === 'standby' ? 'Standby' : shiftKey} · {role} · {start}</b>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, zIndex:50 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"white", width:"100%", maxWidth:720, borderRadius:16, boxShadow:"0 20px 40px rgba(0,0,0,0.25)", overflow:"hidden" }}>
+        <div style={{ padding:"10px 12px", borderBottom:"1px solid #e5e7eb", display:"flex", alignItems:"center", gap:8 }}>
+          <b style={{ fontSize:14 }}>Kies medewerker</b>
+          <span style={{ fontSize:12, color:"#6b7280" }}>· {dayKey.toUpperCase()} · {shiftKey} · {role} · {start}</span>
+          <input
+            placeholder="Zoek op naam…"
+            value={q}
+            onChange={e=>setQ(e.target.value)}
+            style={{ marginLeft:"auto", padding:"6px 10px", border:"1px solid #e5e7eb", borderRadius:8 }}
+          />
           <button style={btnSm()} onClick={onClose}>Sluit</button>
         </div>
-        <div style={{ padding: 16, display: "grid", gap: 8 }}>
-          <input placeholder="Zoek op naam" value={q} onChange={e => setQ(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} />
-          {candidates.length === 0 && <div style={{ fontSize: 14, color: "#6b7280" }}>Geen kandidaten</div>}
-          {candidates.map(({ e }) => {
-            const isDuur = e.wage >= p75
-            return (
-              <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #e5e7eb", borderRadius: 10, padding: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{e.name}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>€{e.wage.toFixed(2)}/u {isDuur && <span style={tinyTag("#fee2e2", "#b91c1c")}>Duur</span>}</div>
+
+        <div style={{ padding:12, display:"grid", gap:8, maxHeight:"70vh", overflow:"auto" }}>
+          {eligible.length === 0 && rejected.length === 0 && (
+            <div style={{ fontSize:14, color:"#6b7280" }}>Geen kandidaten voor dit slot.</div>
+          )}
+
+          {eligible.map(({ e }) => (
+            <div key={e.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", border:"1px solid #e5e7eb", borderRadius:12, padding:10, background:"white" }}>
+              <div style={{ display:"grid", gap:4 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontWeight:600 }}>{e.name}</span>
+                  {role !== 'Standby' && (e.skills?.[role] ?? 0) >= 0 && (
+                    <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e.skills?.[role] ?? 0)}</span>
+                  )}
+                  {e.wage >= p75 && role !== 'Standby' && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
+                  {e.canOpen && <span style={tinyTag("#e0e7ff","#1d4ed8")}>Open</span>}
+                  {e.canClose && <span style={tinyTag("#dcfce7","#16a34a")}>Sluit</span>}
+                  {e.allowedStandby && <span style={tinyTag("#f3f4f6","#374151")}>Standby</span>}
                 </div>
-                <button style={btnSm()} onClick={() => onChoose(e.id)}>Kies</button>
+                <div style={{ fontSize:12, color:"#6b7280" }}>
+                  €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
+                </div>
+                <div style={{ fontSize:11, color:"#6b7280" }}>
+                  FOH {e.skills?.FOH ?? 0} · Host {e.skills?.Host ?? 0} · Bar {e.skills?.Bar ?? 0} · Runner {e.skills?.Runner ?? 0} · AR {e.skills?.Allround ?? 0}
+                </div>
               </div>
-            )
-          })}
+              <button
+                style={btnSm()}
+                onClick={() => { addAssignment(dayKey, shiftKey, role, start, e.id); onClose(); }}
+              >
+                Kies
+              </button>
+            </div>
+          ))}
+
+          {rejected.length > 0 && (
+            <>
+              <div style={{ marginTop:8, fontSize:12, color:"#6b7280" }}>Afgewezen</div>
+              {rejected.map(({ e, reason }) => (
+                <div key={e.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", border:"1px solid #e5e7eb", borderRadius:12, padding:10, background:"#f9fafb", opacity:0.6, filter:"grayscale(1)" }}>
+                  <div style={{ display:"grid", gap:4 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontWeight:600 }}>{e.name}</span>
+                      <span style={{ fontSize:11, color:"#6b7280" }}>{reason}</span>
+                      {role !== 'Standby' && (e.skills?.[role] ?? 0) >= 0 && (
+                        <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e.skills?.[role] ?? 0)}</span>
+                      )}
+                      {e.wage >= p75 && role !== 'Standby' && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
+                      {e.canOpen && <span style={tinyTag("#e0e7ff","#1d4ed8")}>Open</span>}
+                      {e.canClose && <span style={tinyTag("#dcfce7","#16a34a")}>Sluit</span>}
+                      {e.allowedStandby && <span style={tinyTag("#f3f4f6","#374151")}>Standby</span>}
+                    </div>
+                    <div style={{ fontSize:12, color:"#6b7280" }}>
+                      €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
+                    </div>
+                    <div style={{ fontSize:11, color:"#6b7280" }}>
+                      FOH {e.skills?.FOH ?? 0} · Host {e.skills?.Host ?? 0} · Bar {e.skills?.Bar ?? 0} · Runner {e.skills?.Runner ?? 0} · AR {e.skills?.Allround ?? 0}
+                    </div>
+                  </div>
+                  <button style={{ ...btnSm(), opacity:0.6, cursor:"not-allowed" }} disabled>Niet mogelijk</button>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function EditEmployeeModal({ employee, onClose, onSave, employees }) {
-  const [name, setName] = useState(employee.name)
-  const [wage, setWage] = useState(employee.wage)
-  const [prefs, setPrefs] = useState(employee.prefs || [])
-  const [skills, setSkills] = useState({ ...employee.skills })
-  const [canOpen, setCanOpen] = useState(!!employee.canOpen)
-  const [canClose, setCanClose] = useState(!!employee.canClose)
-  const [allowedStandby, setAllowedStandby] = useState(!!employee.allowedStandby)
-  const [isMentor, setIsMentor] = useState(!!employee.isMentor)
-  const [isRookie, setIsRookie] = useState(!!employee.isRookie)
-  const [preferWith, setPreferWith] = useState(employee.preferWith || [])
-  const [avoidWith, setAvoidWith] = useState(employee.avoidWith || [])
-  const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  const toggleId = (setArr, arr, id) => setArr(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
+  const [name, setName] = React.useState(employee.name);
+  const [wage, setWage] = React.useState(employee.wage);
+  const [prefs, setPrefs] = React.useState(employee.prefs || []);
+  const [skills, setSkills] = React.useState({ ...employee.skills });
+  const [canOpen, setCanOpen] = React.useState(!!employee.canOpen);
+  const [canClose, setCanClose] = React.useState(!!employee.canClose);
+  const [allowedStandby, setAllowedStandby] = React.useState(!!employee.allowedStandby);
+  const [isMentor, setIsMentor] = React.useState(!!employee.isMentor);
+  const [isRookie, setIsRookie] = React.useState(!!employee.isRookie);
+  const [preferWith, setPreferWith] = React.useState(employee.preferWith || []);
+  const [avoidWith, setAvoidWith] = React.useState(employee.avoidWith || []);
+
+  const [contractType, setContractType] = React.useState(employee.contractType || "0-uren");
+  const [minHoursWeek, setMinHoursWeek] = React.useState(employee.minHoursWeek ?? 0);
+  const [maxHoursWeek, setMaxHoursWeek] = React.useState(employee.maxHoursWeek ?? 35);
+  const [maxShiftsWeek, setMaxShiftsWeek] = React.useState(employee.maxShiftsWeek ?? 5);
+  const [maxConsecutiveDays, setMaxConsecutiveDays] = React.useState(employee.maxConsecutiveDays ?? 5);
+  const [minRestHours, setMinRestHours] = React.useState(employee.minRestHours ?? 11);
+  const [maxCloseOpenPerWeek, setMaxCloseOpenPerWeek] = React.useState(employee.maxCloseOpenPerWeek ?? 1);
+
+  const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
+  const toggleId = (setArr, arr, id) => setArr(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]);
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", width: "100%", maxWidth: 640 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", width: "100%", maxWidth: 720 }}>
         <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <b>Bewerk medewerker</b>
           <button style={btnSm()} onClick={onClose}>Sluit</button>
@@ -1067,6 +1442,7 @@ function EditEmployeeModal({ employee, onClose, onSave, employees }) {
         <div style={{ padding: 16, display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Naam</span><input value={name} onChange={e => setName(e.target.value)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 14 }}>Uurloon (€)</span><input type="number" value={wage} onChange={e => setWage(parseFloat(e.target.value || '0'))} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb" }} /></label>
+
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Voorkeursdiensten</div>
             <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
@@ -1074,6 +1450,7 @@ function EditEmployeeModal({ employee, onClose, onSave, employees }) {
               <label><input type="checkbox" checked={prefs.length === 0} onChange={() => setPrefs([])} /> geen voorkeur</label>
             </div>
           </div>
+
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Competenties</div>
             <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
@@ -1082,6 +1459,44 @@ function EditEmployeeModal({ employee, onClose, onSave, employees }) {
               <label><input type="checkbox" checked={allowedStandby} onChange={e => setAllowedStandby(e.target.checked)} /> mag standby</label>
             </div>
           </div>
+
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Contract</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Type</span>
+                <select value={contractType} onChange={e=>setContractType(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }}>
+                  <option value="vaste_uren">vaste_uren</option>
+                  <option value="0-uren">0-uren</option>
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Min uren/week</span>
+                <input type="number" value={minHoursWeek} onChange={e=>setMinHoursWeek(parseFloat(e.target.value||'0'))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Max uren/week</span>
+                <input type="number" value={maxHoursWeek} onChange={e=>setMaxHoursWeek(parseFloat(e.target.value||'0'))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Max diensten/week</span>
+                <input type="number" value={maxShiftsWeek} onChange={e=>setMaxShiftsWeek(parseInt(e.target.value||'0',10))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Max opeenvolgende dagen</span>
+                <input type="number" value={maxConsecutiveDays} onChange={e=>setMaxConsecutiveDays(parseInt(e.target.value||'0',10))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Min rust (uur)</span>
+                <input type="number" value={minRestHours} onChange={e=>setMinRestHours(parseFloat(e.target.value||'0'))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 14 }}>Max sluit→open / week</span>
+                <input type="number" value={maxCloseOpenPerWeek} onChange={e=>setMaxCloseOpenPerWeek(parseInt(e.target.value||'0',10))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+              </label>
+            </div>
+          </div>
+
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Koppelregels</div>
             <div style={{ display: "flex", gap: 12, fontSize: 14 }}>
@@ -1099,14 +1514,24 @@ function EditEmployeeModal({ employee, onClose, onSave, employees }) {
               </div>
             </div>
           </div>
+
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button style={btn()} onClick={onClose}>Annuleer</button>
-            <button style={btn()} onClick={() => onSave({ ...employee, name, wage, prefs, skills, canOpen, canClose, allowedStandby, isMentor, isRookie, preferWith, avoidWith })}>Opslaan</button>
+            <button
+              style={btn()}
+              onClick={() => onSave({
+                ...employee, name, wage, prefs, skills, canOpen, canClose, allowedStandby,
+                isMentor, isRookie, preferWith, avoidWith,
+                contractType, minHoursWeek, maxHoursWeek, maxShiftsWeek, maxConsecutiveDays, minRestHours, maxCloseOpenPerWeek
+              })}
+            >
+              Opslaan
+            </button>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Employees({ employees, setEmployees, p75, setEditEmp }) {
@@ -1160,6 +1585,14 @@ function NewEmployeeForm({ onAdd }) {
   const [canClose, setCanClose] = React.useState(false);
   const [allowedStandby, setAllowedStandby] = React.useState(true);
 
+  const [contractType, setContractType] = React.useState("0-uren");
+  const [minHoursWeek, setMinHoursWeek] = React.useState(0);
+  const [maxHoursWeek, setMaxHoursWeek] = React.useState(35);
+  const [maxShiftsWeek, setMaxShiftsWeek] = React.useState(5);
+  const [maxConsecutiveDays, setMaxConsecutiveDays] = React.useState(5);
+  const [minRestHours, setMinRestHours] = React.useState(11);
+  const [maxCloseOpenPerWeek, setMaxCloseOpenPerWeek] = React.useState(1);
+
   const togglePref = (v) => setPrefs(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
 
   const skillInput = (key, label) => (
@@ -1207,14 +1640,55 @@ function NewEmployeeForm({ onAdd }) {
         <label><input type="checkbox" checked={allowedStandby} onChange={e => setAllowedStandby(e.target.checked)} /> mag standby</label>
       </div>
 
+      <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:8, display:"grid", gap:8 }}>
+        <div style={{ fontWeight: 600 }}>Contract</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Type</span>
+            <select value={contractType} onChange={e=>setContractType(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }}>
+              <option value="vaste_uren">vaste_uren</option>
+              <option value="0-uren">0-uren</option>
+            </select>
+          </label>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Min uren/week</span>
+            <input type="number" value={minHoursWeek} onChange={e=>setMinHoursWeek(parseFloat(e.target.value||'0'))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+          </label>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Max uren/week</span>
+            <input type="number" value={maxHoursWeek} onChange={e=>setMaxHoursWeek(parseFloat(e.target.value||'0'))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+          </label>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Max diensten/week</span>
+            <input type="number" value={maxShiftsWeek} onChange={e=>setMaxShiftsWeek(parseInt(e.target.value||'0',10))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+          </label>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Max opeenvolgende dagen</span>
+            <input type="number" value={maxConsecutiveDays} onChange={e=>setMaxConsecutiveDays(parseInt(e.target.value||'0',10))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+          </label>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Min rust (uur)</span>
+            <input type="number" value={minRestHours} onChange={e=>setMinRestHours(parseFloat(e.target.value||'0'))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+          </label>
+          <label style={{ display:"grid", gap:6 }}>
+            <span style={{ fontSize:14 }}>Max sluit→open / week</span>
+            <input type="number" value={maxCloseOpenPerWeek} onChange={e=>setMaxCloseOpenPerWeek(parseInt(e.target.value||'0',10))} style={{ padding:"8px 12px", borderRadius:10, border:"1px solid #e5e7eb" }} />
+          </label>
+        </div>
+      </div>
+
       <button
         style={btn()}
         onClick={() => {
           if (!name) return;
           const id = 'e' + Math.random().toString(36).slice(2, 7);
-          onAdd({ id, name, wage, prefs, skills, canOpen, canClose, allowedStandby });
+          onAdd({
+            id, name, wage, prefs, skills, canOpen, canClose, allowedStandby,
+            contractType, minHoursWeek, maxHoursWeek, maxShiftsWeek, maxConsecutiveDays, minRestHours, maxCloseOpenPerWeek
+          });
           setName(''); setPrefs([]); setSkills({ FOH: 3, Host: 3, Bar: 3, Runner: 3, Allround: 3 });
           setCanOpen(false); setCanClose(false); setAllowedStandby(true);
+          setContractType("0-uren"); setMinHoursWeek(0); setMaxHoursWeek(35); setMaxShiftsWeek(5); setMaxConsecutiveDays(5); setMinRestHours(11); setMaxCloseOpenPerWeek(1);
         }}
       >
         Toevoegen
@@ -1288,20 +1762,21 @@ function Availability({ employees, days, availability, setAvailabilityByWeek, we
   )
 }
 
-function Settings() {
+function Settings({ showRejectedCandidates, setShowRejectedCandidates }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <Panel title="Kleuren & Branding"><div style={{ fontSize: 14, color: "#6b7280" }}>Kleuren gematcht aan brasserie1434.nl. Dark mode beschikbaar.</div></Panel>
-      <Panel title="Grenzen (weergave)">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 14 }}>
-          <LabeledInput label="Max opeenvolgende dagen" placeholder="5" />
-          <LabeledInput label="Min. rust (uur)" placeholder="11" />
-          <LabeledInput label="Max sluit→open per week" placeholder="1" />
-          <LabeledInput label="Max diensten/week" placeholder="5" />
-        </div>
+      <Panel title="Planner · Selectie">
+        <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+          <input
+            type="checkbox"
+            checked={!!showRejectedCandidates}
+            onChange={e => setShowRejectedCandidates(e.target.checked)}
+          />
+          <span>Toon afgewezen kandidaten bij selectie (grijs, met reden)</span>
+        </label>
       </Panel>
     </div>
-  )
+  );
 }
 
 function ExportView() {
@@ -1390,6 +1865,132 @@ function hasCloserInShift(assignments, dayKey, shiftKey, employees){
     }
   }
   return false;
+}
+const dayOrder = ["ma","di","wo","do","vr","za","zo"];
+const dayIndex = (k)=> dayOrder.indexOf(k);
+const prevDayKey = (k)=> dayOrder[(dayIndex(k)-1+7)%7];
+const nextDayKey = (k)=> dayOrder[(dayIndex(k)+1)%7];
+
+function shiftEndTime(start){ return minToTime((timeToMin(start) + 7*60) % (24*60)); }
+
+function listKeysForEmp(state, empId){
+  return Object.keys(state).filter(k => (state[k]||[]).some(a => a.employeeId===empId));
+}
+function listNonStandbyForEmp(state, empId){
+  return Object.keys(state).filter(k => {
+    const [,,role] = k.split(':');
+    if(role==='Standby') return false;
+    return (state[k]||[]).some(a => a.employeeId===empId);
+  });
+}
+function empWeekHours(state, empId){
+  return listNonStandbyForEmp(state, empId).length * 7;
+}
+function empWeekShifts(state, empId){
+  return listNonStandbyForEmp(state, empId).length;
+}
+function empDaysSet(state, empId){
+  const set = new Set();
+  listNonStandbyForEmp(state, empId).forEach(k=>{
+    const [d] = k.split(':'); set.add(d);
+  });
+  return set;
+}
+function longestRunWith(setDays, addDay){
+  const s = new Set(setDays);
+  if(addDay) s.add(addDay);
+  let best = 0, cur = 0;
+  for(let i=0;i<7;i++){
+    const key = dayOrder[i];
+    if(s.has(key)){ cur++; best = Math.max(best, cur); } else { cur=0; }
+  }
+  return best;
+}
+function earliestStartOnDay(state, empId, dayKey){
+  let best = null;
+  Object.keys(state).forEach(k=>{
+    const [d,,role,start] = k.split(':');
+    if(d!==dayKey || role==='Standby') return;
+    (state[k]||[]).forEach(a=>{
+      if(a.employeeId!==empId) return;
+      if(best===null || timeToMin(start) < timeToMin(best)) best = start;
+    });
+  });
+  return best;
+}
+function latestEndOnDay(state, empId, dayKey){
+  let best = null;
+  Object.keys(state).forEach(k=>{
+    const [d,,role,start] = k.split(':');
+    if(d!==dayKey || role==='Standby') return;
+    (state[k]||[]).forEach(a=>{
+      if(a.employeeId!==empId) return;
+      const end = shiftEndTime(start);
+      if(best===null || timeToMin(end) > timeToMin(best)) best = end;
+    });
+  });
+  return best;
+}
+function closeOpenCount(state, empId){
+  let count = 0;
+  for(let i=0;i<7;i++){
+    const d = dayOrder[i], n = dayOrder[(i+1)%7];
+    const hadClose = Object.keys(state).some(k=>{
+      const [dd,,role,start] = k.split(':');
+      if(dd!==d || role==='Standby') return false;
+      return (state[k]||[]).some(a=>a.employeeId===empId) && requiresClose(start);
+    });
+    const hasOpenNext = Object.keys(state).some(k=>{
+      const [dd,,role,start] = k.split(':');
+      if(dd!==n || role==='Standby') return false;
+      return (state[k]||[]).some(a=>a.employeeId===empId) && requiresOpen(start);
+    });
+    if(hadClose && hasOpenNext) count++;
+  }
+  return count;
+}
+function wouldViolateContractOnAdd(emp, dayKey, shiftKey, role, start, state){
+  const tmp = { ...state };
+  const key = `${dayKey}:${shiftKey}:${role}:${start}`;
+  const cur = tmp[key] || [];
+  if(cur.some(a=>a.employeeId===emp.id)) return { ok:false, reason:"al ingepland in dit slot" };
+  tmp[key] = [...cur, { employeeId: emp.id, standby: role==='Standby' }];
+
+  // Standby telt niet voor contractregels
+  if(role==='Standby') return { ok:true };
+
+  const hours = empWeekHours(tmp, emp.id);
+  if(emp.maxHoursWeek>0 && hours > emp.maxHoursWeek) return { ok:false, reason:"max uren/week" };
+
+  const shifts = empWeekShifts(tmp, emp.id);
+  if(emp.maxShiftsWeek>0 && shifts > emp.maxShiftsWeek) return { ok:false, reason:"max diensten/week" };
+
+  const daysSet = empDaysSet(tmp, emp.id);
+  const run = longestRunWith(daysSet);
+  if(emp.maxConsecutiveDays>0 && run > emp.maxConsecutiveDays) return { ok:false, reason:"max opeenvolgende dagen" };
+
+  // Rust en sluit→open
+  const prev = prevDayKey(dayKey), next = nextDayKey(dayKey);
+  const endNew = shiftEndTime(start);
+
+  const prevEnd = latestEndOnDay(tmp, emp.id, prev);
+  if(prevEnd){
+    // rust tussen prevEnd (vorige dag) en start (nieuwe dag)
+    // prevEnd en start zijn beide "kloktijden"; cross-day rust = (24h - prevEnd) + start
+    const restMin = ((24*60 - timeToMin(prevEnd)) + timeToMin(start)) % (24*60);
+    if(emp.minRestHours>0 && restMin < emp.minRestHours*60) return { ok:false, reason:"min rust" };
+  }
+  const nextStart = earliestStartOnDay(tmp, emp.id, next);
+  if(nextStart){
+    const restMin = ((24*60 - timeToMin(endNew)) + timeToMin(nextStart)) % (24*60);
+    if(emp.minRestHours>0 && restMin < emp.minRestHours*60) return { ok:false, reason:"min rust" };
+  }
+
+  // sluit→open extra check
+  const co = closeOpenCount(tmp, emp.id);
+  if(emp.maxCloseOpenPerWeek>=0 && co > emp.maxCloseOpenPerWeek) return { ok:false, reason:"max sluit→open" };
+
+  return { ok:true };
 }
 function btn() { return { padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white" } }
 function btnSm() { return { padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", background: "white", fontSize: 12 } }
