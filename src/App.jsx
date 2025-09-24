@@ -304,17 +304,35 @@ function addAssignment(dayKey, shiftKey, role, start, employeeId){
 
 function buildAutofillAssignments() {
   const next = {};
-  const byDay = {};
-  const byDayStandby = {};
-  days.forEach(d => { byDay[d.key] = new Set(); byDayStandby[d.key] = new Set(); });
 
+  // helpers binnen deze functie
   const getEmp = (id) => employees.find(e => e.id === id);
+  const alreadyHasAnyToday = (state, dayKey, empId) =>
+    Object.keys(state).some(k => {
+      const [d] = k.split(':');
+      if (d !== dayKey) return false;
+      return (state[k] || []).some(a => a.employeeId === empId);
+    });
+
+  // vaste_uren: onder min-uren => voorrang in sort
+  function isUnderMinHoursFixed(nextAssignments, emp) {
+    const hours = empWeekHours(nextAssignments, emp.id); // gebruikt je bestaande helper
+    return emp.contractType === 'vaste_uren'
+      && (emp.minHoursWeek || 0) > 0
+      && hours < emp.minHoursWeek;
+  }
+  function contractTypePriorityCompare(nextAssignments, a, b) {
+    const aUnder = isUnderMinHoursFixed(nextAssignments, a);
+    const bUnder = isUnderMinHoursFixed(nextAssignments, b);
+    if (aUnder !== bUnder) return aUnder ? -1 : 1;
+    return 0;
+  }
 
   days.forEach(d => {
     const dayNeeds = needs[d.key] || {};
 
-    // 'standby' altijd als laatste
-    const shiftKeys = Object.keys(dayNeeds).sort((a,b)=>{
+    // standby altijd als laatste
+    const shiftKeys = Object.keys(dayNeeds).sort((a, b) => {
       if (a === 'standby' && b !== 'standby') return 1;
       if (b === 'standby' && a !== 'standby') return -1;
       return 0;
@@ -323,20 +341,16 @@ function buildAutofillAssignments() {
     shiftKeys.forEach(shiftKey => {
       const entries = dayNeeds[shiftKey] || [];
 
-      const needsOpenShift  = entries.some(en => (en.starts||[]).some(s => requiresOpen(s)));
-      const needsCloseShift = entries.some(en => (en.starts||[]).some(s => requiresClose(s)));
+      const needsOpenShift  = entries.some(en => (en.starts || []).some(s => requiresOpen(s)));
+      const needsCloseShift = entries.some(en => (en.starts || []).some(s => requiresClose(s)));
 
       entries.forEach(entry => {
         const perStartCount = (entry.starts.length > 1) ? 1 : entry.count;
 
         entry.starts.forEach(start => {
-          const key = `${d.key}:${shiftKey}:${entry.role}:${start}`;
+          const slot = `${d.key}:${shiftKey}:${entry.role}:${start}`;
 
-          const mentorInShiftAlready = Object.keys(next).some(k => {
-            const [dd, ss, role2] = k.split(':');
-            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
-            return (next[k] || []).some(a => getEmp(a.employeeId)?.isMentor);
-          });
+          // shift-breed al opener/closer/mentor aanwezig (excl. Standby)
           const openerInShiftAlready = Object.keys(next).some(k => {
             const [dd, ss, role2] = k.split(':');
             if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
@@ -347,43 +361,48 @@ function buildAutofillAssignments() {
             if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
             return (next[k] || []).some(a => getEmp(a.employeeId)?.canClose);
           });
+          const mentorInShiftAlready = Object.keys(next).some(k => {
+            const [dd, ss, role2] = k.split(':');
+            if (dd !== d.key || ss !== shiftKey || role2 === 'Standby') return false;
+            return (next[k] || []).some(a => getEmp(a.employeeId)?.isMentor);
+          });
 
-          const candidates = employees
+          // kandidaten opbouwen + filteren
+          let candidates = employees
             .filter(e => entry.role === 'Standby' ? !!e.allowedStandby : ((e.skills?.[entry.role] ?? 0) >= 3))
-            .filter(e => {
-              // nog niets op deze dag
-              const alreadyToday = Object.keys(next).some(k=>{
-                const [dd] = k.split(':'); if (dd !== d.key) return false;
-                return (next[k]||[]).some(a=>a.employeeId===e.id);
-              });
-              if (alreadyToday) return false;
-              // contract check (hypothetisch toevoegen)
-              const chk = wouldViolateContractOnAdd(e, d.key, shiftKey, entry.role, start, next);
-              return chk.ok;
-            })
-            .sort((a, b) => {
-              if (needsOpenShift && !openerInShiftAlready && (a.canOpen !== b.canOpen)) return a.canOpen ? -1 : 1;
-              if (needsCloseShift && !closerInShiftAlready && (a.canClose !== b.canClose)) return a.canClose ? -1 : 1;
+            .filter(e => !alreadyHasAnyToday(next, d.key, e.id)) // 1 dienst per dag (Standby telt als dienst)
+            .filter(e => wouldViolateContractOnAdd(e, d.key, shiftKey, entry.role, start, next).ok);
 
-              // onder min-uren eerst
-              const aH = empWeekHours(next, a.id), bH = empWeekHours(next, b.id);
-              const aUnder = (a.minHoursWeek||0) > 0 && aH < a.minHoursWeek;
-              const bUnder = (b.minHoursWeek||0) > 0 && bH < b.minHoursWeek;
-              if (aUnder !== bUnder) return aUnder ? -1 : 1;
+          // sorteren
+          candidates.sort((a, b) => {
+            // opener/closer zachte prioriteit
+            if (needsOpenShift && !openerInShiftAlready && (a.canOpen !== b.canOpen)) return a.canOpen ? -1 : 1;
+            if (needsCloseShift && !closerInShiftAlready && (a.canClose !== b.canClose)) return a.canClose ? -1 : 1;
 
-              const p = prefFrom(shiftKey, start);
-              const ap = !!(p && (a.prefs || []).includes(p));
-              const bp = !!(p && (b.prefs || []).includes(p));
-              if (ap !== bp) return ap ? -1 : 1;
+            // vaste_uren onder min-uren eerst
+            {
+              const c = contractTypePriorityCompare(next, a, b);
+              if (c !== 0) return c;
+            }
 
-              if (entry.role !== 'Standby') {
-                const sa = a.skills?.[entry.role] ?? 0, sb = b.skills?.[entry.role] ?? 0;
-                if (sa !== sb) return sb - sa;
-              }
+            // voorkeurdienst meenemen
+            const p = prefFrom(shiftKey, start);
+            const ap = !!(p && (a.prefs || []).includes(p));
+            const bp = !!(p && (b.prefs || []).includes(p));
+            if (ap !== bp) return ap ? -1 : 1;
 
-              return a.wage - b.wage; // goedkoop eerst
-            });
+            // skill voor rol (niet voor Standby)
+            if (entry.role !== 'Standby') {
+              const sa = a.skills?.[entry.role] ?? 0;
+              const sb = b.skills?.[entry.role] ?? 0;
+              if (sa !== sb) return sb - sa;
+            }
 
+            // goedkoop eerst
+            return a.wage - b.wage;
+          });
+
+          // plaatsen in slot
           let placed = [];
           let dureCount = 0;
           const limitDure = ((d.key === 'vr' || d.key === 'za') && shiftKey === 'diner') ? 2 : 1;
@@ -391,51 +410,34 @@ function buildAutofillAssignments() {
           for (const c of candidates) {
             if (placed.length >= perStartCount) break;
 
-            const hasShift = Object.keys(next).some(k=>{
-              const [dd] = k.split(':'); if (dd !== d.key) return false;
-              return (next[k]||[]).some(a=>a.employeeId===c.id);
-            });
-            const hasSB = Object.keys(next).some(k=>{
-              const [dd,,role2] = k.split(':'); if (dd !== d.key || role2 !== 'Standby') return false;
-              return (next[k]||[]).some(a=>a.employeeId===c.id);
-            });
+            // kostenmix
+            if (entry.role !== 'Standby' && c.wage >= p75 && dureCount >= limitDure) continue;
 
-            if (entry.role === 'Standby') {
-              if (hasShift) continue; // SB niet combineren
-              if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
-              placed.push({ employeeId: c.id, standby: true });
-              continue;
-            }
-
-            if (hasShift || hasSB) continue;
-            if (c.wage >= p75 && dureCount >= limitDure) continue;
+            // koppelregel: liever-niet met reeds geplaatsten
             if (hasAvoidWith(c.id, placed.map(x => x.employeeId), employees)) continue;
 
-            placed.push({ employeeId: c.id, standby: false });
-            if (c.wage >= p75) dureCount++;
+            placed.push({ employeeId: c.id, standby: entry.role === 'Standby' });
+            if (entry.role !== 'Standby' && c.wage >= p75) dureCount++;
 
-            // zachte preferWith: probeer maatje mee te nemen als er plek is
-            if (placed.length < perStartCount) {
+            // zachte preferWith: probeer maatje als er plek is
+            if (entry.role !== 'Standby' && placed.length < perStartCount) {
               const preferSet = new Set(c.preferWith || []);
-              const prefCand = candidates.find(px =>
+              const buddy = candidates.find(px =>
                 px.id !== c.id &&
-                !Object.keys(next).some(k=>{
-                  const [dd] = k.split(':'); if (dd !== d.key) return false;
-                  return (next[k]||[]).some(a=>a.employeeId===px.id);
-                }) &&
                 !placed.some(p => p.employeeId === px.id) &&
-                (entry.role === 'Standby' ? !!px.allowedStandby : ((px.skills?.[entry.role] ?? 0) >= 3)) &&
+                !alreadyHasAnyToday(next, d.key, px.id) &&
+                (px.skills?.[entry.role] ?? 0) >= 3 &&
                 !hasAvoidWith(px.id, placed.map(x => x.employeeId), employees) &&
                 (preferSet.has(px.id) || (px.preferWith || []).includes(c.id)) &&
                 wouldViolateContractOnAdd(px, d.key, shiftKey, entry.role, start, next).ok
               );
-              if (prefCand && placed.length < perStartCount) {
-                placed.push({ employeeId: prefCand.id, standby: entry.role === 'Standby' });
-                if (prefCand.wage >= p75 && entry.role !== 'Standby') dureCount++;
+              if (buddy) {
+                placed.push({ employeeId: buddy.id, standby: false });
+                if (buddy.wage >= p75) dureCount++;
               }
             }
 
-            // Rookie aanwezig → zorg shift-breed voor een mentor (mag op ander startmoment)
+            // rookie aanwezig → zorg shift-breed voor mentor (mag op andere start)
             if (entry.role !== 'Standby' && placed.length < perStartCount) {
               const placedIds = placed.map(x => x.employeeId);
               const hasRookieLocal = placedIds.some(id => getEmp(id)?.isRookie);
@@ -445,6 +447,7 @@ function buildAutofillAssignments() {
                 const mentor = candidates.find(mx =>
                   mx.isMentor &&
                   !placed.some(p => p.employeeId === mx.id) &&
+                  !alreadyHasAnyToday(next, d.key, mx.id) &&
                   wouldViolateContractOnAdd(mx, d.key, shiftKey, entry.role, start, next).ok &&
                   !hasAvoidWith(mx.id, placed.map(x => x.employeeId), employees)
                 );
@@ -456,7 +459,7 @@ function buildAutofillAssignments() {
             }
           }
 
-          next[key] = placed;
+          next[slot] = placed;
         });
       });
     });
@@ -713,7 +716,7 @@ function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
 
         {tab === 'beschikbaarheid' && <Availability employees={employees} days={days} availability={availability} setAvailabilityByWeek={setAvailabilityByWeek} weekKey={weekKey} />}
         {tab === 'medewerkers' && <Employees employees={employees} setEmployees={setEmployees} p75={p75} setEditEmp={setEditEmp} />}
-        {tab === 'instellingen' && (<Settings showRejectedCandidates={showRejectedCandidates}  setShowRejectedCandidates={setShowRejectedCandidates}  />)}
+        {tab === 'instellingen' && (<Settings showRejectedCandidates={showRejectedCandidates}  setShowRejectedCandidates={setShowRejectedCandidates} employees={employees} />)}
         {tab === 'export' && <ExportView />}
         
       </main>
@@ -1130,29 +1133,64 @@ function ShiftWarningsBadge({ info }) {
   return <span style={style}>{info.dure}/{info.limit}</span>
 }
 
-function AssignModal({ picker, onClose, employees, assignments, addAssignment, p75, showRejectedCandidates }) {
+function AssignModal({ picker, onClose, employees, assignments, addAssignment, p75, showRejectedCandidates, isAvailable }) {
   if (!picker) return null;
   const { dayKey, shiftKey, role, start } = picker;
   const [q, setQ] = React.useState("");
 
+  // Lokale, robuuste helpers (voorkomen missing-function crashes)
+  const safeIsAvailable = (id, d, s) => {
+    try { return typeof isAvailable === 'function' ? !!isAvailable(id, d, s) : true; }
+    catch { return true; }
+  };
+  const hasOpenerInShiftLocal = (asgn, d, s) => {
+    try {
+      for (const k of Object.keys(asgn)) {
+        const [dd, ss, r] = k.split(':');
+        if (dd !== d || ss !== s || r === 'Standby') continue;
+        const list = asgn[k] || [];
+        for (const a of list) { const emp = employees.find(e => e.id === a.employeeId); if (emp?.canOpen) return true; }
+      }
+    } catch {}
+    return false;
+  };
+  const hasCloserInShiftLocal = (asgn, d, s) => {
+    try {
+      for (const k of Object.keys(asgn)) {
+        const [dd, ss, r] = k.split(':');
+        if (dd !== d || ss !== s || r === 'Standby') continue;
+        const list = asgn[k] || [];
+        for (const a of list) { const emp = employees.find(e => e.id === a.employeeId); if (emp?.canClose) return true; }
+      }
+    } catch {}
+    return false;
+  };
+  const wouldViolateLocal = (e, d, s, r, st) => {
+    try { return wouldViolateContractOnAdd(e, d, s, r, st, assignments); }
+    catch { return { ok: true }; }
+  };
+  const reqOpen = (()=>{ try { return requiresOpen(start); } catch { return false; } })();
+  const reqClose= (()=>{ try { return requiresClose(start);} catch { return false; } })();
+  const openerAnywhere = hasOpenerInShiftLocal(assignments, dayKey, shiftKey);
+  const closerAnywhere = hasCloserInShiftLocal(assignments, dayKey, shiftKey);
+
   const key = `${dayKey}:${shiftKey}:${role}:${start}`;
-  const groupIds = (assignments[key] || []).map(a => a.employeeId);
+  const groupIds = (assignments?.[key] || []).map(a => a.employeeId);
 
   function hasAnyAssignmentInDay(empId){
-    return Object.keys(assignments).some(k=>{
-      const [d] = k.split(':'); if(d!==dayKey) return false;
-      return (assignments[k]||[]).some(a=>a.employeeId===empId);
-    });
+    try {
+      return Object.keys(assignments || {}).some(k=>{
+        const [d] = k.split(':'); if(d!==dayKey) return false;
+        return (assignments[k]||[]).some(a=>a.employeeId===empId);
+      });
+    } catch { return false; }
   }
 
-  const openerAnywhere = hasOpenerInShift(assignments, dayKey, shiftKey, employees);
-  const closerAnywhere = hasCloserInShift(assignments, dayKey, shiftKey, employees);
-
-  const rows = employees.map(e => {
+  const rows = (employees || []).map(e => {
     let eligible = true;
     let reason = "";
 
-    if (!isAvailable(e.id, dayKey, start)) { eligible = false; reason = "Niet beschikbaar"; }
+    if (!safeIsAvailable(e.id, dayKey, start)) { eligible = false; reason = "Niet beschikbaar"; }
 
     if (eligible && hasAnyAssignmentInDay(e.id)) { eligible = false; reason = "Heeft al een dienst vandaag"; }
 
@@ -1160,7 +1198,8 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
       if (role === "Standby") {
         if (!e.allowedStandby) { eligible = false; reason = "Geen standby-recht"; }
       } else {
-        if ((e.skills?.[role] ?? 0) < 3) { eligible = false; reason = "Skill < 3"; }
+        const score = (e.skills && e.skills[role]) ?? 0;
+        if (score < 3) { eligible = false; reason = "Skill < 3"; }
       }
     }
 
@@ -1170,20 +1209,25 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
     }
 
     if (eligible) {
-      const chk = wouldViolateContractOnAdd(e, dayKey, shiftKey, role, start, assignments);
+      const chk = wouldViolateLocal(e, dayKey, shiftKey, role, start);
       if (!chk.ok) { eligible = false; reason = `Contract: ${chk.reason}`; }
     }
 
-    const p = prefFrom(shiftKey, start);
-    const prefers = !!(p && (e.prefs || []).includes(p));
+    // sorteer-signalen
+    let prefers = false;
+    try {
+      const p = prefFrom(shiftKey, start);
+      prefers = !!(p && (e.prefs || []).includes(p));
+    } catch {}
     const preferSet = new Set(e.preferWith || []);
-    let preferScore = 0; groupIds.forEach(id => { if (preferSet.has(id)) preferScore++; });
+    let preferScore = 0;
+    groupIds.forEach(id => { if (preferSet.has(id)) preferScore++; });
 
-    const wantOpen  = requiresOpen(start)  && !openerAnywhere;
-    const wantClose = requiresClose(start) && !closerAnywhere;
+    const wantOpen  = reqOpen  && !openerAnywhere;
+    const wantClose = reqClose && !closerAnywhere;
     const openBoost = wantOpen  && e.canOpen  ? 1 : 0;
     const closeBoost= wantClose && e.canClose ? 1 : 0;
-    const skill = role === "Standby" ? 0 : (e.skills?.[role] ?? 0);
+    const skill = role === "Standby" ? 0 : ((e.skills && e.skills[role]) ?? 0);
 
     return { e, eligible, reason, prefers, preferScore, openBoost, closeBoost, skill };
   });
@@ -1235,8 +1279,8 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
               <div style={{ display:"grid", gap:4 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <span style={{ fontWeight:600 }}>{e.name}</span>
-                  {role !== 'Standby' && (e.skills?.[role] ?? 0) >= 0 && (
-                    <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e.skills?.[role] ?? 0)}</span>
+                  {role !== 'Standby' && (
+                    <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e?.skills?.[role] ?? 0)}</span>
                   )}
                   {e.wage >= p75 && role !== 'Standby' && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
                   {e.canOpen && <span style={tinyTag("#e0e7ff","#1d4ed8")}>Open</span>}
@@ -1247,13 +1291,10 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
                   €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
                 </div>
                 <div style={{ fontSize:11, color:"#6b7280" }}>
-                  FOH {e.skills?.FOH ?? 0} · Host {e.skills?.Host ?? 0} · Bar {e.skills?.Bar ?? 0} · Runner {e.skills?.Runner ?? 0} · AR {e.skills?.Allround ?? 0}
+                  FOH {e?.skills?.FOH ?? 0} · Host {e?.skills?.Host ?? 0} · Bar {e?.skills?.Bar ?? 0} · Runner {e?.skills?.Runner ?? 0} · AR {e?.skills?.Allround ?? 0}
                 </div>
               </div>
-              <button
-                style={btnSm()}
-                onClick={() => { addAssignment(dayKey, shiftKey, role, start, e.id); onClose(); }}
-              >
+              <button style={btnSm()} onClick={() => { addAssignment(dayKey, shiftKey, role, start, e.id); onClose(); }}>
                 Kies
               </button>
             </div>
@@ -1268,8 +1309,8 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ fontWeight:600 }}>{e.name}</span>
                       <span style={{ fontSize:11, color:"#6b7280" }}>{reason}</span>
-                      {role !== 'Standby' && (e.skills?.[role] ?? 0) >= 0 && (
-                        <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e.skills?.[role] ?? 0)}</span>
+                      {role !== 'Standby' && (
+                        <span style={{ fontSize:11, color:"#6b7280" }}>skill {role}: {(e?.skills?.[role] ?? 0)}</span>
                       )}
                       {e.wage >= p75 && role !== 'Standby' && <span style={tinyTag("#fee2e2","#b91c1c")}>Duur</span>}
                       {e.canOpen && <span style={tinyTag("#e0e7ff","#1d4ed8")}>Open</span>}
@@ -1280,7 +1321,7 @@ function AssignModal({ picker, onClose, employees, assignments, addAssignment, p
                       €{(e.wage ?? 0).toFixed(2)}/u · Pref: {e.prefs && e.prefs.length ? e.prefs.join(", ") : "geen"}
                     </div>
                     <div style={{ fontSize:11, color:"#6b7280" }}>
-                      FOH {e.skills?.FOH ?? 0} · Host {e.skills?.Host ?? 0} · Bar {e.skills?.Bar ?? 0} · Runner {e.skills?.Runner ?? 0} · AR {e.skills?.Allround ?? 0}
+                      FOH {e?.skills?.FOH ?? 0} · Host {e?.skills?.Host ?? 0} · Bar {e?.skills?.Bar ?? 0} · Runner {e?.skills?.Runner ?? 0} · AR {e?.skills?.Allround ?? 0}
                     </div>
                   </div>
                   <button style={{ ...btnSm(), opacity:0.6, cursor:"not-allowed" }} disabled>Niet mogelijk</button>
@@ -1648,7 +1689,7 @@ function Availability({ employees, days, availability, setAvailabilityByWeek, we
   )
 }
 
-function Settings({ showRejectedCandidates, setShowRejectedCandidates }) {
+function Settings({ showRejectedCandidates, setShowRejectedCandidates, employees }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <Panel title="Planner · Selectie">
@@ -1660,6 +1701,36 @@ function Settings({ showRejectedCandidates, setShowRejectedCandidates }) {
           />
           <span>Toon afgewezen kandidaten bij selectie (grijs, met reden)</span>
         </label>
+      </Panel>
+
+      <Panel title="Grenzen (weergave)">
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                <th style={{ padding: "8px" }}>Medewerker</th>
+                <th style={{ padding: "8px" }}>Max opeenvolgende dagen</th>
+                <th style={{ padding: "8px" }}>Min. rust (uur)</th>
+                <th style={{ padding: "8px" }}>Max sluit→open per week</th>
+                <th style={{ padding: "8px" }}>Max diensten/week</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map(e => (
+                <tr key={e.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "8px" }}>{e.name}</td>
+                  <td style={{ padding: "8px" }}>{e.maxConsecutiveDays ?? "–"}</td>
+                  <td style={{ padding: "8px" }}>{e.minRestHours ?? "–"}</td>
+                  <td style={{ padding: "8px" }}>{e.maxCloseOpenPerWeek ?? "–"}</td>
+                  <td style={{ padding: "8px" }}>{e.maxShiftsWeek ?? "–"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 8 }}>
+            Wil je deze grenzen wijzigen? Ga naar <b>Medewerkers → Bewerk</b>.
+          </div>
+        </div>
       </Panel>
     </div>
   );
@@ -1877,6 +1948,21 @@ function wouldViolateContractOnAdd(emp, dayKey, shiftKey, role, start, state){
   if(emp.maxCloseOpenPerWeek>=0 && co > emp.maxCloseOpenPerWeek) return { ok:false, reason:"max sluit→open" };
 
   return { ok:true };
+}
+// Geeft true als een medewerker een VASTE_UREN contract heeft én onder zijn/haar min-uren zit
+function isUnderMinHoursFixed(nextAssignments, emp) {
+  const hours = empWeekHours(nextAssignments, emp.id); // gebruikt je bestaande helper
+  return emp.contractType === 'vaste_uren'
+    && (emp.minHoursWeek || 0) > 0
+    && hours < emp.minHoursWeek;
+}
+
+// Vergelijker om vaste-uren-onder-min vóór te trekken in Autofill
+function contractTypePriorityCompare(nextAssignments, a, b) {
+  const aUnder = isUnderMinHoursFixed(nextAssignments, a);
+  const bUnder = isUnderMinHoursFixed(nextAssignments, b);
+  if (aUnder !== bUnder) return aUnder ? -1 : 1;
+  return 0;
 }
 function btn() { return { padding: "8px 12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white" } }
 function btnSm() { return { padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", background: "white", fontSize: 12 } }
