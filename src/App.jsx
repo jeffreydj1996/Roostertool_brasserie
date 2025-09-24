@@ -1566,45 +1566,6 @@ function Employees({ employees, setEmployees, p75, setEditEmp }) {
   );
 }
 
-function AvailabilityPicker({ value, onChange }) {
-  const type = value?.type || 'all';
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-      <select
-        value={type}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === 'all') onChange({ type: 'all' });
-          else if (v === 'none') onChange({ type: 'none' });
-          else onChange({ type: 'range', from: value?.from || '10:00', to: value?.to || '22:00' });
-        }}
-        style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb" }}
-      >
-        <option value="all">Hele dag</option>
-        <option value="none">Niet</option>
-        <option value="range">Tijdvak</option>
-      </select>
-
-      {type === 'range' && (
-        <>
-          <input
-            style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
-            value={value?.from || '10:00'}
-            onChange={(e) => onChange({ ...(value || { type: 'range' }), type: 'range', from: e.target.value })}
-          />
-          <span>–</span>
-          <input
-            style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #e5e7eb", width: 80 }}
-            value={value?.to || '22:00'}
-            onChange={(e) => onChange({ ...(value || { type: 'range' }), type: 'range', to: e.target.value })}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
 function AvailabilityScreen({ employees, days, availabilityByWeek, weekKey, setAvailabilityFor }) {
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-3">
@@ -1994,7 +1955,6 @@ const dayIndex = (k)=> dayOrder.indexOf(k);
 const prevDayKey = (k)=> dayOrder[(dayIndex(k)-1+7)%7];
 const nextDayKey = (k)=> dayOrder[(dayIndex(k)+1)%7];
 
-function shiftEndTime(start){ return minToTime((timeToMin(start) + 7*60) % (24*60)); }
 
 function listKeysForEmp(state, empId){
   return Object.keys(state).filter(k => (state[k]||[]).some(a => a.employeeId===empId));
@@ -2055,7 +2015,7 @@ function latestEndOnDay(state, dayKey){
   return (max===-Infinity)? null : max;
 }
 
-function shiftEndTime(shiftKey, start){ 
+function shiftEndTime(shiftKey, start){
   const startM = timeToMin(start);
   const dur = 7*60;
   return startM + dur;
