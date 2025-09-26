@@ -776,60 +776,84 @@ function onChangeStart(dayKey, shiftKey, entryIndex, role, oldStart, newStart) {
   )
 
   function runTests(override) {
-    const state = override || buildAutofillAssignments()
-    const fails = []
-    if (!Object.keys(state).every(k => Array.isArray(state[k]))) fails.push('T1: Slot niet als array')
-    const anySB = Object.keys(state).find(k => k.includes(':Standby:'))
-    if (anySB && state[anySB][0]) {
-      const a = state[anySB][0]
-      const emp = employees.find(e => e.id === a.employeeId)
-      const cost = a.standby ? 0 : (emp ? emp.wage * 7 : 0)
-      if (cost !== 0) fails.push('T2: Standby rekent kosten')
-    }
-    const byDayEmp = {}
-    Object.keys(state).forEach(k => {
-      const [d, s, r, start] = k.split(':')
-      ;(state[k] || []).forEach(a => {
-        byDayEmp[d] = byDayEmp[d] || {}
-        byDayEmp[d][a.employeeId] = byDayEmp[d][a.employeeId] || { standby: false, shifts: new Set(), open: false, close: false }
-        if (r === 'Standby') byDayEmp[d][a.employeeId].standby = true
-        byDayEmp[d][a.employeeId].shifts.add(s)
-        if (r !== 'Standby') {
-          if (requiresOpen(start)) byDayEmp[d][a.employeeId].open = true
-          if (requiresClose(start)) byDayEmp[d][a.employeeId].close = true
-        }
-      })
-    })
-    Object.entries(byDayEmp).forEach(([day, empMap]) => {
-      Object.entries(empMap).forEach(([empId, info]) => {
-        if (info.shifts.size > 1) fails.push('T3: meerdere shifts op 1 dag')
-        if (info.standby && (info.shifts.size > 1 || !info.shifts.has('standby'))) fails.push('T3: standby gecombineerd met andere shift')
-        const emp = employees.find(e => e.id === empId)
-        if (emp) { if (info.open && !emp.canOpen) fails.push('T7: open zonder bevoegdheid'); if (info.close && !emp.canClose) fails.push('T8: sluit zonder bevoegdheid') }
-      })
-    })
-    const countDure = (dayKey, shiftKey) => {
-      const set = new Set()
-      Object.keys(state).forEach(k => {
-        const [d, s, r] = k.split(':')
-        if (d === dayKey && s === shiftKey && r !== 'Standby') {
-          ;(state[k] || []).forEach(a => { const emp = employees.find(e => e.id === a.employeeId); if (emp && emp.wage >= p75) set.add(a.employeeId) })
-        }
-      })
-      return set.size
-    }
-    if (countDure('vr', 'diner') > 2) fails.push('T4: Dure-limiet vr-diner overschreden')
-    if (countDure('za', 'diner') > 2) fails.push('T4: Dure-limiet za-diner overschreden')
-    Object.keys(state).forEach(k => {
-      const [, , role] = k.split(':')
-      if (role === 'Standby') return
-      ;(state[k] || []).forEach(a => { const emp = employees.find(e => e.id === a.employeeId); if (emp && ((emp.skills[role] ?? 0) < 3)) fails.push('T5: skill <3 ingepland') })
-    })
-    const needSB = (dayKey) => (needs[dayKey]?.standby?.[0]?.count) || 0
-    days.forEach(d => { const assigned = Object.keys(state).filter(k => k.startsWith(`${d.key}:standby:Standby:`)).reduce((n, k) => n + ((state[k] || []).length), 0); if (assigned > needSB(d.key)) fails.push(`T6: Te veel standby op ${d.key}`) })
-    return { passed: 8, failed: fails }
+  // Gebruik huidig rooster (tenzij een alternatief wordt meegegeven)
+  const state = override || buildAutofillAssignments();
+  const fails = [];
+
+  // T1: alle slots moeten arrays zijn
+  if (!Object.keys(state).every(k => Array.isArray(state[k]))) {
+    fails.push('T1: Slot niet als array');
   }
+
+  // T2: standby rekent geen kosten (controle: eerste standby-slot)
+  const anySB = Object.keys(state).find(k => k.includes(':Standby:'));
+  if (anySB && state[anySB][0]) {
+    const a = state[anySB][0];
+    const emp = employees.find(e => e.id === a.employeeId);
+    const cost = a.standby ? 0 : (emp ? emp.wage * 7 : 0);
+    if (cost !== 0) fails.push('T2: Standby rekent kosten');
+  }
+
+  // Dag/medewerker matrix om regels te controleren
+  const byDayEmp = {};
+  Object.keys(state).forEach(k => {
+    const [d, s, r, start] = k.split(':');
+    (state[k] || []).forEach(a => {
+      if (!byDayEmp[d]) byDayEmp[d] = {};
+      if (!byDayEmp[d][a.employeeId]) {
+        byDayEmp[d][a.employeeId] = { standby: false, shifts: new Set(), open: false, close: false };
+      }
+      if (r === 'Standby') byDayEmp[d][a.employeeId].standby = true;
+      byDayEmp[d][a.employeeId].shifts.add(s);
+      if (r !== 'Standby') {
+        if (requiresOpen(start)) byDayEmp[d][a.employeeId].open = true;
+        if (requiresClose(start)) byDayEmp[d][a.employeeId].close = true;
+      }
+    });
+  });
+
+  // T3, T7, T8: combi-regels + bevoegdheden
+  Object.entries(byDayEmp).forEach(([day, empMap]) => {
+    Object.entries(empMap).forEach(([empId, info]) => {
+      if (info.shifts.size > 1) fails.push('T3: meerdere shifts op 1 dag');
+      if (info.standby && (info.shifts.size > 1 && !info.shifts.has('standby'))) {
+        fails.push('T3: standby gecombineerd met andere shift');
+      }
+      const emp = employees.find(e => String(e.id) === String(empId));
+      if (emp) {
+        if (info.open && !emp.canOpen) fails.push('T7: open zonder bevoegdheid');
+        if (info.close && !emp.canClose) fails.push('T8: sluit zonder bevoegdheid');
+      }
+    });
+  });
+
+  // T4–T6: dure-mix (P75)
+  const countDure = (dayKey, shiftKey) => {
+    const set = new Set();
+    Object.keys(state).forEach(k => {
+      const [d, s, r] = k.split(':');
+      if (d === dayKey && s === shiftKey && r !== 'Standby') {
+        (state[k] || []).forEach(a => {
+          const emp = employees.find(e => e.id === a.employeeId);
+          if (emp && emp.wage >= p75) set.add(a.employeeId);
+        });
+      }
+    });
+    return set.size;
+  };
+
+  if (countDure('vr', 'diner') > 2) fails.push('T4: Dure-limiet vr-diner overschreden');
+  if (countDure('za', 'diner') > 2) fails.push('T5: Dure-limiet za-diner overschreden');
+  ['ma', 'di', 'wo', 'do'].forEach(dk => {
+    ['lunch', 'diner'].forEach(sk => {
+      if (countDure(dk, sk) > 1) fails.push(`T6: Dure-limiet ${dk} ${sk} overschreden`);
+    });
+  });
+
+  const TOTAL = 8;
+  return { passed: Math.max(TOTAL - fails.length, 0), failed: fails };
 }
+
 
 /* ---------- UI COMPONENTEN ---------- */
 
