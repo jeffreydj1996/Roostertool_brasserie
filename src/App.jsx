@@ -236,17 +236,22 @@ export default function App() {
 
   function slotKey(dayKey, shiftKey, role, start) { return `${dayKey}:${shiftKey}:${role}:${start}` }
 
-  function isAvailable(empId, dayKey, start) {
-    const rec = availability[empId]?.[dayKey]
-    if (!rec) return true
-    if (rec.type === 'none') return false
-    if (rec.type === 'all') return true
-    const startMin = timeToMin(start), endMin = startMin + 7 * 60
-    const [fh, fm] = (rec.from || '00:00').split(':').map(Number)
-    const [th, tm] = (rec.to || '23:59').split(':').map(Number)
-    const a = fh * 60 + fm, b = th * 60 + tm
-    return startMin < b && a < endMin
-  }
+function isAvailable(employeeId, dayKey, start) {
+  const wk  = availabilityByWeek[weekKey] || {};
+  const emp = wk[employeeId] || {};
+  const av  = emp[dayKey];
+
+  // Default: als er niks is ingevuld, beschouw als Hele dag beschikbaar
+  if (!av || av.type === 'all') return true;
+  if (av.type === 'none') return false;
+
+  // Tijdvak
+  const t  = timeToMin(start);
+  const f  = timeToMin(av.from || '00:00');
+  const to = timeToMin(av.to   || '23:59');
+  return t >= f && t <= to;
+}
+
 
 function addAssignment(dayKey, shiftKey, role, start, employeeId){
   setAssignmentsByWeek(prev=>{
@@ -1333,45 +1338,168 @@ function ShiftWarningsBadge({ info }) {
   return <span style={style}>{info.dure}/{info.limit}</span>
 }
 
-function AssignModal({ picker, onClose, employees, assignments, addAssignment, p75, showRejectedCandidates, isAvailable, empWeekHours }) {
+function AssignModal({
+  picker,               // { dayKey, shiftKey, role, start }
+  onClose,
+  employees,
+  assignments,
+  addAssignment,
+  p75,
+  showRejectedCandidates = false,
+  isAvailable,
+  empWeekHours,
+}) {
   if (!picker) return null;
   const { dayKey, shiftKey, role, start } = picker;
-  const [q, setQ] = React.useState("");
 
-  // Lokale helpers
-  const safeIsAvailable = (id, d, s) => {
-    try { return typeof isAvailable === 'function' ? !!isAvailable(id, d, s) : true; }
-    catch { return true; }
-  };
-  const openerAnywhere = (() => {
-    try {
-      for (const k of Object.keys(assignments)) {
-        const [dd, ss, rr] = k.split(':');
-        if (dd !== dayKey || ss !== shiftKey || rr === 'Standby') continue;
-        for (const a of (assignments[k] || [])) {
-          const emp = employees.find(e => e.id === a.employeeId);
-          if (emp?.canOpen) return true;
-        }
-      }
-    } catch {}
+  function hasAnyAssignmentInDay(empId) {
+    for (const k of Object.keys(assignments)) {
+      const [d] = k.split(':');
+      if (d !== dayKey) continue;
+      const list = assignments[k] || [];
+      if (list.some(a => a.employeeId === empId)) return true;
+    }
     return false;
-  })();
-  const closerAnywhere = (() => {
-    try {
-      for (const k of Object.keys(assignments)) {
-        const [dd, ss, rr] = k.split(':');
-        if (dd !== dayKey || ss !== shiftKey || rr === 'Standby') continue;
-        for (const a of (assignments[k] || [])) {
-          const emp = employees.find(e => e.id === a.employeeId);
-          if (emp?.canClose) return true;
-        }
-      }
-    } catch {}
-    return false;
-  })();
+  }
 
-  const key = `${dayKey}:${shiftKey}:${role}:${start}`;
-  const groupIds = (assignments?.[key] || []).map(a => a.employeeId);
+  // Build candidate rows
+  const rows = employees.map(e => {
+    let eligible = true;
+    let reason   = '';
+    const warns  = [];
+
+    // 1 dienst per dag (Standby telt ook als dienst)
+    if (hasAnyAssignmentInDay(e.id)) {
+      eligible = false; reason = 'Heeft al een dienst vandaag';
+    }
+
+    // Mag Standby?
+    if (eligible && role === 'Standby' && !e.canStandby) {
+      eligible = false; reason = 'Mag geen Standby';
+    }
+
+    // Beschikbaarheid
+    if (eligible && !isAvailable(e.id, dayKey, start)) {
+      eligible = false; reason = 'Onbeschikbaar';
+    }
+
+    // Skill 0 blokkeert; <3 NIET blokkeren (soft)
+    const skill = role === 'Standby' ? (e.skills?.Standby ?? 5) : (e.skills?.[role] ?? 0);
+    if (eligible && role !== 'Standby' && skill === 0) {
+      eligible = false; reason = 'Skill 0';
+    }
+
+    // Open/sluit: SOFT → alleen waarschuwing
+    if (requiresOpen(start) && !e.canOpen)  warns.push('Geen opener');
+    if (requiresClose(start) && !e.canClose) warns.push('Geen sluiter');
+
+    const wage    = e.wage ?? 0;
+    const isDuur  = wage >= p75;
+    const hours   = empWeekHours(assignments, e.id);
+    const overMax = (e.maxHoursWeek || 0) > 0 && hours > e.maxHoursWeek;
+
+    return {
+      e, eligible, reason, warns, skill, wage, isDuur, overMax
+    };
+  });
+
+  // Sorteer: eerst eligible, dan zonder waarschuwingen, dan hoogste skill, dan laagste loonkosten, dan naam
+  rows.sort((a, b) => {
+    if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    const aw = a.warns.length, bw = b.warns.length;
+    if (aw !== bw) return aw - bw;
+    if (b.skill !== a.skill) return b.skill - a.skill;
+    if (a.wage !== b.wage) return a.wage - b.wage;
+    return a.e.name.localeCompare(b.e.name);
+  });
+
+  // Alleen eligible tonen, tenzij showRejectedCandidates aan staat
+  const toShow = showRejectedCandidates ? rows : rows.filter(r => r.eligible);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-xl rounded-2xl border bg-white shadow-lg">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div className="text-sm">
+            <b>{role}</b> – {dayKey.toUpperCase()} – {start}
+          </div>
+          <button className="text-xs px-2 py-1 rounded-md border hover:bg-gray-50" onClick={onClose}>X</button>
+        </div>
+
+        <div className="p-3 max-h-[70vh] overflow-auto space-y-1">
+          {toShow.length === 0 && (
+            <div className="text-sm text-gray-500 px-2 py-3">
+              Geen kandidaten gevonden voor dit slot.
+            </div>
+          )}
+
+          {toShow.map(({ e, eligible, reason, warns, isDuur, overMax, wage, skill }) => {
+            const disabled = !eligible;
+            return (
+              <button
+                key={e.id}
+                disabled={disabled}
+                onClick={() => {
+                  addAssignment(dayKey, shiftKey, role, start, e.id);
+                  onClose();
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg border ${
+                  disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'
+                } bg-white flex items-center gap-2`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {e.name}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+                    {/* Skill chip (alleen tonen bij niet-Standby) */}
+                    {role !== 'Standby' && (
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">Skill {skill}</span>
+                    )}
+
+                    {/* Duur gloed */}
+                    {!disabled && isDuur && (
+                      <span className="px-1.5 py-0.5 rounded ring-1 ring-rose-200 bg-rose-50 text-rose-700">Duur</span>
+                    )}
+
+                    {/* Over max uren (soft) */}
+                    {!disabled && overMax && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Over max</span>
+                    )}
+
+                    {/* Soft waarschuwingen open/sluit */}
+                    {warns.map((w, i) => (
+                      <span
+                        key={i}
+                        className="px-1.5 py-0.5 rounded ring-1 ring-amber-200 bg-amber-50 text-amber-800"
+                      >
+                        {w}
+                      </span>
+                    ))}
+
+                    {/* Reden bij disabled */}
+                    {disabled && (
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{reason}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-gray-600 shrink-0">
+                  €{wage.toFixed(2)}/u
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="px-4 py-3 border-t flex items-center justify-end">
+          <button className="text-xs px-2 py-1 rounded-md border hover:bg-gray-50" onClick={onClose}>Sluiten</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
   function hasAnyAssignmentInDay(empId){
     try {
