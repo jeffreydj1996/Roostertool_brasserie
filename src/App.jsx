@@ -1001,22 +1001,19 @@ function Rooster({
     if (shiftKey === "diner") return { head:"bg-amber-50 text-amber-900", body:"border-amber-100" };
     return { head:"bg-slate-50 text-slate-900", body:"border-slate-100" }; // standby
   };
+  const btnLite = "text-xs px-2 py-1 rounded-md bg-white/70 border hover:bg-white";
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
       <div className="xl:col-span-3 space-y-4">
         <div className="rounded-2xl border bg-white/80 p-3 flex items-center justify-between sticky top-16 z-10 backdrop-blur">
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 rounded-lg border hover:bg-gray-50" onClick={autofill}>
-              Autofill (week)
-            </button>
+            <button className={btnLite} onClick={autofill}>Autofill (week)</button>
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
               P75: €{p75.toFixed(2)}
             </span>
           </div>
-          <div className="text-sm">
-            Weekkosten: <b>€{weekCost.toFixed(2)}</b>
-          </div>
+          <div className="text-sm">Weekkosten: <b>€{weekCost.toFixed(2)}</b></div>
         </div>
 
         {days.map((d) => {
@@ -1034,14 +1031,16 @@ function Rooster({
                 </div>
                 <div className="flex items-center gap-2">
                   {dayWarnings.missingOpen && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700">Open ontbreekt</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded ring-1 ring-rose-200 bg-rose-50 text-rose-700">
+                      Open ontbreekt
+                    </span>
                   )}
                   {dayWarnings.missingClose && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700">Sluit ontbreekt</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded ring-1 ring-rose-200 bg-rose-50 text-rose-700">
+                      Sluit ontbreekt
+                    </span>
                   )}
-                  <span className="text-sm text-gray-700">
-                    Dagkosten: <b>€{dayCost(d.key).toFixed(2)}</b>
-                  </span>
+                  <span className="text-sm text-gray-700">Dagkosten: <b>€{dayCost(d.key).toFixed(2)}</b></span>
                 </div>
               </header>
 
@@ -1057,9 +1056,8 @@ function Rooster({
                       <div className={`mb-2 px-3 py-2 rounded-xl border ${tone.body} ${tone.head} flex items-center justify-between`}>
                         <div className="font-medium capitalize">{shiftKey}</div>
                         <button
-                          className="text-xs px-2 py-1 rounded-md bg-white/70 border hover:bg-white"
+                          className={btnLite}
                           onClick={() => {
-                            // 1 voorbeeld-dienst; tijd kun je zo aanpassen via “Tijd”
                             const template = { role: "FOH", count: 1, starts: ["17:00"] };
                             onNeedsChange({ ...needs[d.key], [shiftKey]: [...entries, template] });
                           }}
@@ -1084,16 +1082,11 @@ function Rooster({
                             addAssignment={addAssignment}
                             removeAssignment={removeAssignment}
                             onChangeStart={onChangeStart}
-                            onRemoveEntry={()=>{
-                              const nextList = entries.slice();
-                              nextList.splice(idx,1);
-                              onNeedsChange({ ...needs[d.key], [shiftKey]: nextList });
-                            }}
+                            onNeedsChange={onNeedsChange}
                           />
                         ))}
                       </div>
 
-                      {/* Geen entries */}
                       {entries.length === 0 && (
                         <div className="text-xs text-gray-500 px-1 py-2">Nog geen diensten in dit dagdeel.</div>
                       )}
@@ -1106,11 +1099,11 @@ function Rooster({
         })}
       </div>
 
-      {/* rechterkolom bewust leeg voor focus */}
       <div className="xl:col-span-1" />
     </div>
   );
 }
+
 
 function Cell({
   dayKey,
@@ -1124,7 +1117,7 @@ function Cell({
   addAssignment,
   removeAssignment,
   onChangeStart,
-  onRemoveEntry, // nieuw: '-' knop voor hele dienst
+  onNeedsChange, // nodig om count te kunnen verhogen als slot vol is
 }) {
   const role = entry.role;
   const [editKey, setEditKey] = React.useState(null);
@@ -1137,15 +1130,36 @@ function Cell({
     return times;
   }, []);
 
+  // uniforme knopstijl (zelfde als + Dienst toevoegen)
+  const btnLite = "text-[10px] px-2 py-0.5 rounded-md border bg-white/70 hover:bg-white";
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
-      {/* rol + aantal + '-' dienst verwijderen */}
+      {/* rol + aantal + '- Dienst verwijderen' rechts */}
       <div className="px-3 pt-2 flex items-center gap-2">
-        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100">{role}</span>
-        <span className="text-[11px] text-gray-500">{entry.count}×</span>
+        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 font-semibold">{role}</span>
+        {entry.count > 1 && <span className="text-[11px] text-gray-500">{entry.count}×</span>}
         <button
-          className="ml-auto text-[10px] px-2 py-0.5 rounded-md border hover:bg-gray-50"
-          onClick={onRemoveEntry}
+          className={`${btnLite} ml-auto`}
+          onClick={()=>{
+            // hele dienst verwijderen (alle starts + assignments)
+            onNeedsChange(prev=>{
+              const dayObj = { ...(prev[dayKey] || {}) };
+              const list   = (dayObj[shiftKey] || []).slice();
+              const e      = list[entryIndex];
+              if(!e) return prev;
+              // verwijder alle bijbehorende keys
+              setAssignmentsByWeek(prevA=>{
+                const wkA = { ...(prevA[weekKey] || {}) };
+                (e.starts||[]).forEach(st=>{
+                  delete wkA[`${dayKey}:${shiftKey}:${role}:${st}`];
+                });
+                return { ...prevA, [weekKey]: wkA };
+              });
+              list.splice(entryIndex,1);
+              return { ...prev, [dayKey]: { ...(prev[dayKey]||{}), [shiftKey]: list } };
+            });
+          }}
           title="Dienst verwijderen"
         >
           - Dienst verwijderen
@@ -1158,6 +1172,7 @@ function Cell({
           const list = assignments[key] || [];
           const filled = list.length;
           const spots = entry.count;
+          const free = Math.max(spots - filled, 0);
 
           const needOpen = requiresOpen(start);
           const needClose = requiresClose(start);
@@ -1172,28 +1187,28 @@ function Cell({
 
           return (
             <div key={i} className="rounded-lg border border-gray-100 bg-white/90 px-2 py-2">
-              {/* Starttijd prominent + statuschips + 'Tijd' wisselen */}
+              {/* Start + statuschips + begintijd aanpassen */}
               <div className="mb-1 flex items-center gap-2">
                 <span className="text-sm font-semibold tabular-nums">{start}</span>
                 <span className="text-[11px] text-gray-500">· {filled}/{spots}</span>
 
                 {needOpen && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${hasOpener ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ring-1 ${hasOpener ? "ring-emerald-200 bg-emerald-50 text-emerald-700" : "ring-rose-200 bg-rose-50 text-rose-700"}`}>
                     {hasOpener ? "Open OK" : "Open ontbreekt"}
                   </span>
                 )}
                 {needClose && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${hasCloser ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ring-1 ${hasCloser ? "ring-emerald-200 bg-emerald-50 text-emerald-700" : "ring-rose-200 bg-rose-50 text-rose-700"}`}>
                     {hasCloser ? "Sluit OK" : "Sluit ontbreekt"}
                   </span>
                 )}
 
                 <button
-                  className="ml-auto text-[10px] px-2 py-0.5 rounded-md border hover:bg-gray-50"
+                  className={`${btnLite} ml-auto`}
                   onClick={() => setEditKey(editKey === key ? null : key)}
-                  title="Wijzig starttijd"
+                  title="Begintijd aanpassen"
                 >
-                  Tijd
+                  Begintijd aanpassen
                 </button>
                 {editKey === key && (
                   <select
@@ -1212,7 +1227,7 @@ function Cell({
                 )}
               </div>
 
-              {/* Toewijzingen: chips; “Duur” met rode gloed; 'X' om te verwijderen */}
+              {/* Toewijzingen */}
               <div className="flex flex-wrap gap-1.5">
                 {list.map((a, idx) => {
                   const emp = employees.find((e) => e.id === a.employeeId);
@@ -1239,7 +1254,7 @@ function Cell({
                       )}
                       <span className="text-[10px] text-gray-500">€{emp.wage.toFixed(2)}/u</span>
                       <button
-                        className="ml-1 text-[10px] px-1.5 py-0.5 rounded border hover:bg-gray-50"
+                        className={`${btnLite}`}
                         onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}
                         title="Verwijder"
                       >
@@ -1249,17 +1264,31 @@ function Cell({
                   );
                 })}
 
-                {/* Vrije plek */}
-                {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
-                  <button
-                    key={j}
-                    className="text-[11px] px-2 py-1 rounded-full border border-dashed hover:border-solid hover:bg-gray-50"
-                    onClick={() => openPicker({ dayKey, shiftKey, role, start })}
-                    title="Medewerker toevoegen"
-                  >
-                    + Voeg toe
-                  </button>
-                ))}
+                {/* Voeg toe — altijd zichtbaar; als vol dan eerst count++ en dan picker */}
+                <button
+                  className={`${btnLite} border-dashed`}
+                  onClick={() => {
+                    if (free <= 0) {
+                      // eerst 1 plek erbij
+                      onNeedsChange(prev => {
+                        const dayObj = { ...(prev[dayKey] || {}) };
+                        const list   = (dayObj[shiftKey] || []).slice();
+                        const e      = { ...list[entryIndex] };
+                        if (!e) return prev;
+                        e.count = (e.count || 1) + 1;
+                        list[entryIndex] = e;
+                        return { ...prev, [dayKey]: { ...(prev[dayKey]||{}), [shiftKey]: list } };
+                      });
+                      // dan de picker openen
+                      setTimeout(() => openPicker({ dayKey, shiftKey, role, start }), 0);
+                    } else {
+                      openPicker({ dayKey, shiftKey, role, start });
+                    }
+                  }}
+                  title="Medewerker toevoegen"
+                >
+                  + Voeg toe
+                </button>
               </div>
             </div>
           );
