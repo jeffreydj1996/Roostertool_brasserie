@@ -1137,7 +1137,7 @@ function Cell({
     const times = [];
     const add = (h, m) => times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
     for (let h = 6; h <= 24; h++) { add(h % 24, 0); add(h % 24, 30); }
-    add(1, 0); add(1, 30);
+    add(1, 0); add(1, 30); // tot 01:30
     return times;
   }, []);
 
@@ -1162,11 +1162,11 @@ function Cell({
           const filled = list.length;
           const spots = entry.count;
 
-          // Alleen waarschuwingen (oranje) tonen — geen OK chips
+          // Alleen waarschuwingen (oranje) tonen — geen OK-chips
           const needOpen  = requiresOpen(start);
           const needClose = requiresClose(start);
-          const hasOpener = list.some((a) => { const emp = employees.find(e=>e.id===a.employeeId); return !!emp?.canOpen; });
-          const hasCloser = list.some((a) => { const emp = employees.find(e=>e.id===a.employeeId); return !!emp?.canClose; });
+          const hasOpener = list.some(a => { const emp = employees.find(e=>e.id===a.employeeId); return !!emp?.canOpen; });
+          const hasCloser = list.some(a => { const emp = employees.find(e=>e.id===a.employeeId); return !!emp?.canClose; });
           const warnOpen  = needOpen && !hasOpener;
           const warnClose = needClose && !hasCloser;
 
@@ -1214,11 +1214,12 @@ function Cell({
                 )}
               </div>
 
-              {/* Toewijzingen: “Duur” met rode gloed; X-knop; "+ Voeg toe" zelfde knopstijl */}
+              {/* Toewijzingen: “Duur” met rode gloed; X-knop; "+ Voeg toe" met dezelfde knopstijl */}
               <div className="flex flex-wrap gap-1.5">
                 {list.map((a, idx) => {
-                  const emp = employees.find((e) => e.id === a.employeeId);
+                  const emp = employees.find(e => e.id === a.employeeId);
                   if (!emp) return null;
+
                   const hours = empWeekHours(assignments, emp.id);
                   const overMax = (emp.maxHoursWeek || 0) > 0 && hours > emp.maxHoursWeek;
                   const duurGlow = !a.standby && emp.wage >= p75 ? "ring-1 ring-rose-200 bg-rose-50" : "bg-white";
@@ -1250,7 +1251,6 @@ function Cell({
                   );
                 })}
 
-                {/* Vrije plek — altijd dezelfde knopstijl als “+ Dienst toevoegen” */}
                 {Array.from({ length: Math.max(spots - filled, 0) }).map((_, j) => (
                   <button
                     key={j}
@@ -1267,7 +1267,7 @@ function Cell({
         })}
       </div>
 
-      <div className="px-3 pb-2" />
+      <div className="px-3 pb-2"></div>
     </div>
   );
 }
