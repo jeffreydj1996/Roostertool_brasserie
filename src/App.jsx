@@ -1143,7 +1143,6 @@ function Cell({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
-      {/* Rol (dik) + '- Dienst verwijderen' meer naar rechts */}
       <div className="px-3 pt-2 flex items-center gap-2">
         <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-gray-100">{role}</span>
         <button
@@ -1162,7 +1161,6 @@ function Cell({
           const filled = list.length;
           const spots = entry.count;
 
-          // Alleen waarschuwingen (oranje) tonen — geen OK-chips
           const needOpen  = requiresOpen(start);
           const needClose = requiresClose(start);
           const hasOpener = list.some(a => { const emp = employees.find(e=>e.id===a.employeeId); return !!emp?.canOpen; });
@@ -1172,7 +1170,6 @@ function Cell({
 
           return (
             <div key={i} className="rounded-lg border border-gray-100 bg-white/90 px-2 py-2">
-              {/* Starttijd prominent + 0/1 + eventuele oranje waarschuwingen */}
               <div className="mb-1 flex items-center gap-2">
                 <span className="text-sm font-semibold tabular-nums">{start}</span>
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
@@ -1214,7 +1211,6 @@ function Cell({
                 )}
               </div>
 
-              {/* Toewijzingen: “Duur” met rode gloed; X-knop; "+ Voeg toe" met dezelfde knopstijl */}
               <div className="flex flex-wrap gap-1.5">
                 {list.map((a, idx) => {
                   const emp = employees.find(e => e.id === a.employeeId);
@@ -1272,140 +1268,6 @@ function Cell({
   );
 }
 
-
-      <div className="px-2 pb-2 space-y-2">
-        {entry.starts.map((start, i) => {
-          const key = `${dayKey}:${shiftKey}:${role}:${start}`;
-          const list = assignments[key] || [];
-          const filled = list.length;
-          const spots = entry.count;
-          const free = Math.max(spots - filled, 0);
-
-          const needOpen = requiresOpen(start);
-          const needClose = requiresClose(start);
-          const hasOpener = list.some((a) => {
-            const emp = employees.find((e) => e.id === a.employeeId);
-            return !!emp?.canOpen;
-          });
-          const hasCloser = list.some((a) => {
-            const emp = employees.find((e) => e.id === a.employeeId);
-            return !!emp?.canClose;
-          });
-
-          return (
-            <div key={i} className="rounded-lg border border-gray-100 bg-white/90 px-2 py-2">
-              {/* Start + statuschips + begintijd aanpassen */}
-              <div className="mb-1 flex items-center gap-2">
-                <span className="text-sm font-semibold tabular-nums">{start}</span>
-                <span className="text-[11px] text-gray-500">· {filled}/{spots}</span>
-
-                {needOpen && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ring-1 ${hasOpener ? "ring-emerald-200 bg-emerald-50 text-emerald-700" : "ring-rose-200 bg-rose-50 text-rose-700"}`}>
-                    {hasOpener ? "Open OK" : "Open ontbreekt"}
-                  </span>
-                )}
-                {needClose && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ring-1 ${hasCloser ? "ring-emerald-200 bg-emerald-50 text-emerald-700" : "ring-rose-200 bg-rose-50 text-rose-700"}`}>
-                    {hasCloser ? "Sluit OK" : "Sluit ontbreekt"}
-                  </span>
-                )}
-
-                <button
-                  className={`${btnLite} ml-auto`}
-                  onClick={() => setEditKey(editKey === key ? null : key)}
-                  title="Begintijd aanpassen"
-                >
-                  Begintijd aanpassen
-                </button>
-                {editKey === key && (
-                  <select
-                    className="text-[11px] px-2 py-1 rounded border"
-                    value={start}
-                    onChange={(e) => {
-                      const newStart = e.target.value;
-                      setEditKey(null);
-                      onChangeStart(dayKey, shiftKey, entryIndex, role, start, newStart);
-                    }}
-                  >
-                    {allHalfHours.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Toewijzingen */}
-              <div className="flex flex-wrap gap-1.5">
-                {list.map((a, idx) => {
-                  const emp = employees.find((e) => e.id === a.employeeId);
-                  if (!emp) return null;
-                  const hours = empWeekHours(assignments, emp.id);
-                  const overMax = (emp.maxHoursWeek || 0) > 0 && hours > emp.maxHoursWeek;
-
-                  const duurGlow = !a.standby && emp.wage >= p75 ? "ring-1 ring-rose-200 bg-rose-50" : "bg-white";
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-center gap-1.5 px-2 py-1 rounded-full border border-gray-200 ${duurGlow}`}
-                    >
-                      <span className="text-[11px] font-medium">{emp.name}</span>
-                      {a.standby && (
-                        <span className="text-[10px] px-1 rounded bg-gray-100 text-gray-700">Standby</span>
-                      )}
-                      {!a.standby && emp.wage >= p75 && (
-                        <span className="text-[10px] px-1 rounded bg-rose-100 text-rose-700">Duur</span>
-                      )}
-                      {!a.standby && overMax && (
-                        <span className="text-[10px] px-1 rounded bg-amber-100 text-amber-700">Over max</span>
-                      )}
-                      <span className="text-[10px] text-gray-500">€{emp.wage.toFixed(2)}/u</span>
-                      <button
-                        className={`${btnLite}`}
-                        onClick={() => removeAssignment(dayKey, shiftKey, role, start, a.employeeId)}
-                        title="Verwijder"
-                      >
-                        X
-                      </button>
-                    </div>
-                  );
-                })}
-
-                {/* Voeg toe — altijd zichtbaar; als vol dan eerst count++ en dan picker */}
-                <button
-                  className={`${btnLite} border-dashed`}
-                  onClick={() => {
-                    if (free <= 0) {
-                      // eerst 1 plek erbij
-                      onNeedsChange(prev => {
-                        const dayObj = { ...(prev[dayKey] || {}) };
-                        const list   = (dayObj[shiftKey] || []).slice();
-                        const e      = { ...list[entryIndex] };
-                        if (!e) return prev;
-                        e.count = (e.count || 1) + 1;
-                        list[entryIndex] = e;
-                        return { ...prev, [dayKey]: { ...(prev[dayKey]||{}), [shiftKey]: list } };
-                      });
-                      // dan de picker openen
-                      setTimeout(() => openPicker({ dayKey, shiftKey, role, start }), 0);
-                    } else {
-                      openPicker({ dayKey, shiftKey, role, start });
-                    }
-                  }}
-                  title="Medewerker toevoegen"
-                >
-                  + Voeg toe
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="px-3 pb-2" />
-    </div>
-  );
-}
 
 function Bench({ employees, p75 }) {
   return (
